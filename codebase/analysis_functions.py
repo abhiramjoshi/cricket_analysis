@@ -14,10 +14,12 @@ def pre_transform_comms(match_object:match.MatchData):
     df = pd.DataFrame.from_dict(match_object.get_full_comms())
     if df.empty:
         raise utils.NoMatchCommentaryError
+    logger.debug(f"Columns of commentary from match {match_object.match_id}")
+    logger.debug(f'Columns: {df.columns}\nSize: {df.size}')
     map_players(match_object, df)
-    logger.debug(f'{match_object.match_id}: Processing text commentary fields')
+    logger.info(f'{match_object.match_id}: Processing text commentary fields')
     process_text_comms(df)
-    logger.debug(f'{match_object.match_id}: Processing bowler runs')
+    logger.info(f'{match_object.match_id}: Processing bowler runs')
     df['bowlerRuns'] = df['batsmanRuns'] + df['wides'] + df['noballs']
     return df
 
