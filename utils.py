@@ -19,8 +19,8 @@ s_logger = logging.StreamHandler()
 f_logger.setLevel(logging.DEBUG)
 s_logger.setLevel(logging.INFO)
 
-f_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-s_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+f_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+s_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
 f_logger.setFormatter(f_formatter)
 s_logger.setFormatter(s_formatter)
