@@ -1,7 +1,9 @@
 import pickle
 import sys
+from turtle import pen
 from matplotlib.pyplot import vlines
 import sklearn
+from sklearn.linear_model import SGDClassifier
 import codebase.match_data as match
 import codebase.settings as settings
 import pandas as pd
@@ -20,7 +22,7 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.svm import LinearSVC
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import GridSearchCV
-
+from sklearn import metrics
 
 years = ['2017', '2021']
 LABEL_DATA_FILENAME= f"train_commentary_labels_{years[0]}_{years[-1]}.json"
@@ -75,12 +77,12 @@ if __name__ == "__main__":
         n = all_comms.shape[0]
         data = all_comms['commentTextItems']
         labels = all_comms['labels']
+        logger.info(all_comms.groupby('labels').count()/all_comms.shape[0])
         logger.info('Creating training set with %s of the data', TEST_TRAINING_SPLIT)
         split = int(n*TEST_TRAINING_SPLIT)
         training_set = af.package_data(data=data[:split], labels=labels[:split])
         logger.info('Creating test set')
         test_set = af.package_data(data=data[:(len(data)-split)], labels=labels[:(len(data)-split)], label_names=training_set.label_names)
-
     # pprint(training_set.data[-10:])
     # pprint(training_set.labels[-10:])
     # p
@@ -97,7 +99,10 @@ if __name__ == "__main__":
     clf = Pipeline([
         ('vect', CountVectorizer()),
         ('tfidf', TfidfTransformer()),
-        ('clf', MultinomialNB())
+        ('clf', SGDClassifier(
+            loss='hinge', penalty='l2', alpha=1e-3, random_state=42,
+            max_iter=5, tol=None
+        ))
     ])
 
     logger.info('Fitting test set to the model')
@@ -109,4 +114,7 @@ if __name__ == "__main__":
     rand_num = np.random.randint(0, len(test_set.data))
     logger.info('Sample prediction: %s: %s\n Actual label: %s', test_set.data[rand_num], test_set.label_names[predicted[rand_num]], test_set.label_names[test_set.labels[rand_num]])
     logger.info('Model accuracy: %s', np.mean(predicted == test_set.labels))
+    logger.info('\n%s', metrics.classification_report(test_set.labels, predicted, target_names=test_set.label_names, zero_division=0))    
 
+    wrong_labels = np.array(predicted != test_set.labels)
+    logger.info(wrong_labels[:5])
