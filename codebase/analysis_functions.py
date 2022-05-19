@@ -84,10 +84,13 @@ def get_aggregates(match_object: match.MatchData, event):
 
     return event_df
 
-def get_player_contribution(player_id:str|int, match, _type = 'both', by_inning = False):
+def get_player_contribution(player_id:str|int, match:match.MatchData, _type = 'both', by_innings = False, is_object_id=False):
     """
     Get player innings from a match commentary
     """
+    if is_object_id:
+        player_id = {player['object_id']:player['player_id'] for player in match.all_players}[int(player_id)]
+
     comms = pre_transform_comms(match)
     if _type == 'both':
         comms = comms[(comms['batsmanPlayerId'] == int(player_id)) | (comms['bowlerPlayerId'] == int(player_id))]
@@ -97,36 +100,54 @@ def get_player_contribution(player_id:str|int, match, _type = 'both', by_inning 
         elif _type == 'bowl':
             col = 'bowlerPlayerId'
         comms = comms[comms[col] == int(player_id)]
+        if by_innings:
+            comms = [comms[comms['inningNumber'] == i] for i, _ in enumerate(match.innings_list)]
+            # for i, _ in enumerate(match.innings_list):
+            #     _comms.append(comms[comms['inningNumber'] == i])
+            # _comm
     return comms
 
-def cricket_totals(player_id, m):
+def cricket_totals(player_id, m, by_innings=False, is_object_id=False):
     """
     Get the cricketing totals for the players. I.e. their stats in the collected innings.
     """
     # if player id in bowling id, update bowling figures
-    bowling_df = get_player_contribution(player_id, m, 'bowl')
-    balls_bowled = bowling_df.shape[0]
-    bowling_df_agg = bowling_df[['batsmanRuns', 'bowlerRuns', 'noballs', 'wides', 'isSix', 'isFour', 'isWicket', 'legbyes']].sum(numeric_only=False)
-    extras = bowling_df_agg['wides']+bowling_df_agg['noballs']
-    bowling_figures = {
-        'overs': f'{(balls_bowled - extras)//6}.{(balls_bowled - extras)%6}',
-        'runs': bowling_df_agg['bowlerRuns'],
-        'dot_balls': (bowling_df['bowlerRuns'] == 0).sum(),
-        'wides': bowling_df_agg['wides'],
-        'noballs': bowling_df_agg['noballs']
-    }
+    bowling_dfs = get_player_contribution(player_id, m, 'bowl', by_innings=by_innings, is_object_id=is_object_id)
+    bowling_figures = []
+    if not by_innings:
+        bowling_dfs = pd.concat(bowling_dfs, ignore_index=True, axis=0)
+    if not isinstance(bowling_dfs, list):
+        bowling_dfs = [bowling_dfs]
+    for bowling_df in bowling_dfs:
+        balls_bowled = bowling_df.shape[0]
+        bowling_df_agg = bowling_df[['batsmanRuns', 'bowlerRuns', 'noballs', 'wides', 'isSix', 'isFour', 'isWicket', 'legbyes']].sum(numeric_only=False)
+        extras = bowling_df_agg['wides']+bowling_df_agg['noballs']
+        inning_bowling_figures = {
+            'overs': f'{(balls_bowled - extras)//6}.{(balls_bowled - extras)%6}',
+            'runs': bowling_df_agg['bowlerRuns'],
+            'dot_balls': (bowling_df['bowlerRuns'] == 0).sum(),
+            'wides': bowling_df_agg['wides'],
+            'noballs': bowling_df_agg['noballs']
+        }
+        bowling_figures.append(inning_bowling_figures)
     # else if player id in batting id, update batting figures
-    batting_df = get_player_contribution(player_id, m, 'bat')
-    balls_faced = batting_df.shape[0]
-    batting_df_agg = batting_df.sum()
-    batting_figures = {
-        'runs': batting_df_agg['batsmanRuns'],
-        'balls_faced': balls_faced,
-        'fours': batting_df_agg['isFour'],
-        'six': batting_df_agg['isSix'],
-        'dot_balls': (batting_df['bowlerRuns'] == 0).sum()
-    }
-
+    batting_dfs = get_player_contribution(player_id, m, 'bat', by_innings=by_innings, is_object_id=is_object_id)
+    batting_figures = []
+    if not by_innings:
+        batting_dfs = pd.concat(batting_dfs, ignore_index=True, axis=0)
+    if not isinstance(batting_dfs, list):
+        batting_dfs = [batting_dfs]
+    for batting_df in batting_dfs:
+        balls_faced = batting_df.shape[0]
+        batting_df_agg = batting_df.sum()
+        inning_batting_figures = {
+            'runs': batting_df_agg['batsmanRuns'],
+            'balls_faced': balls_faced,
+            'fours': batting_df_agg['isFour'],
+            'six': batting_df_agg['isSix'],
+            'dot_balls': (batting_df['bowlerRuns'] == 0).sum()
+        }
+        batting_figures.append(inning_batting_figures)
     return batting_figures, bowling_figures
 
 def process_text_comms(df:pd.DataFrame, columns = ['dismissalText', 'commentPreTextItems', 'commentTextItems', 'commentPostTextItems', 'commentVideos']):
@@ -188,10 +209,15 @@ def create_vocabulary(df, m, remove_match_refs = True):
     dictionary = create_dictionary(words)
     return dictionary
 
+def create_dummies(df: pd.DataFrame, column = 'batsmanRuns', value_mapping = {'isRuns': [1,2,3,5]}):
+    for value in value_mapping:
+        df[value] = df[column].isin(value_mapping[value])
+
 def create_labels(df: pd.DataFrame, categories:list, null_category:str, rev_dummy_col_name:str = 'labels', commentary_col = 'commentTextItems', inplace = False):
     if not inplace:
         result = df.loc[:, categories+[commentary_col]]
     else:
+
         result = df
     logger.info(f'Creating labels for commentary. \n \
                  Columns to label: {", ".join(categories)} \n \
@@ -228,3 +254,12 @@ def package_data(data:list, labels:list, label_names:list = [], encode_num = Tru
         data = list(data), labels = labels, label_names = list(label_names)
     )
     return packaged_data
+
+def describe_data_set(dataset, title, label_names=None):
+    if isinstance(dataset, sklearn.utils.Bunch):
+        labels_unmapped = [dataset.label_names[label] for label in dataset.labels]
+    else:
+        labels_unmapped = [label_names[label] for label in dataset]
+    series = pd.Series(labels_unmapped, )
+    groups = series_to_df(series, [title,'labels']).groupby('labels').count()/series.shape[0]
+    return groups
