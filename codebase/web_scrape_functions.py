@@ -5,6 +5,7 @@ import numpy as np
 import requests
 from datetime import date
 import re
+from collections import defaultdict
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
 from utils import logger
@@ -32,6 +33,23 @@ def get_statsguru_player_url(player_id, _format):
 
 def get_statsguru_matches_url(year, _format):
     return f"https://stats.espncricinfo.com/ci/engine/records/team/match_results.html?class={FORMATS[_format]};id={year};type=year"
+
+def read_table(table_html:BeautifulSoup):
+    headers_html = table_html.find('thead').find('tr')
+    headers = [header.text if header.text != '' else str(i) for i,header in enumerate(headers_html.find_all('th'))]
+    body_html = table_html.find('tbody')
+    table_body = []
+    for row_html in body_html.find_all('tr'):
+        row = []
+        for element in row_html.find_all('td'):
+            try:
+                link = element.find('a')['href']
+                row.append((element.text.replace('\xa0', ''), link))
+            except TypeError:
+                row.append(element.text.replace('\xa0', ''))
+        table_body.append(row)
+    # table_body.insert(0, headers)
+    return headers, table_body
 
 def read_statsguru_table(table_html:BeautifulSoup):
     headers_html = table_html.find('thead').find('tr')
@@ -94,7 +112,7 @@ def match_ids_and_links(table, match_links):
         return list(zip(match_ids, match_list))
     return match_ids
 
-def player_match_list(player_id, _format, match_links = False):
+def player_match_list(player_id, _format='test', match_links = False):
     url = get_statsguru_player_url(player_id, _format)
     table = read_statsguru(url, table_name='Match by match list')[0]
     matches = match_ids_and_links(table, match_links)
@@ -137,3 +155,105 @@ def get_match_list(years=[date.today().year], _format='test', match_links=False,
         logger.info(f'Collected match ids for {year}')
     
     return matches
+
+def get_match_scorecard(url):
+    session = create_retry_session()
+    logger.debug(f'Sending get request to {url}')
+    response = session.get(url)
+    html = BeautifulSoup(response.content, 'html.parser')
+    scorecard_block = html.find('div', {'class':"lg:ds-container lg:ds-mx-auto lg:ds-px-5 lg:ds-pt-4"}).findChild("div", {'class':'ds-grow'})
+    title_card = scorecard_block.find('div',{"class":"ds-w-full ds-bg-fill-content-prime ds-overflow-hidden ds-rounded-xl ds-border ds-border-line"})
+    scorecards = title_card.find_next_sibling('div', {'class':'ds-mt-3'})
+    scorecard = scorecards.findAll('table')
+    logger.debug('Fetched scorecard')
+    logger.debug('Parsing scorecard')
+    tables = []
+    for _section in scorecard:
+        try:
+            tables.append(read_table(_section))
+        except AttributeError as e:
+            logger.debug(e)
+            continue
+
+    def player_id_from_link(value:tuple[str]):
+        player_name = value[0].replace('(c)', '').replace('†', '').strip().lower().replace(' ', '-')
+        matches = re.match(f'/player/{player_name}-(\d+)', value[1])
+        player_object_id = matches.group(1)
+        return (value[0], player_object_id)
+
+    def how_out(value):
+        if 'st ' in value:
+            return 'stumped'
+        if 'c ' in value:
+            return 'caught'
+        if 'run out' in value:
+            return 'run_out'
+        if 'lbw ' in value:
+            return 'lbw'
+        if 'not out' in value:
+            return False
+        if ' b ' in value or 'b ' in value:
+            return 'bowled'
+        else:
+            return True
+
+    def total(row):
+        _totals = {}
+        total_types = {
+            'overs': '(\d{1,3}.{0,1}\d{0,1}) Ov',
+            'run_rate':'RR: (\d{1,3}.\d{2})',
+            'minutes':'(\d{1,4}) Mts',
+        }
+        for t in total_types:
+            try:
+                _totals[t] = re.search(total_types[t], row[1]).group(1)
+            except AttributeError:
+                logger.info('failed to match: %s, Pattern: %s', row[1], total_types[t])
+                continue
+        
+        _totals['score'] = row[2]
+
+        return _totals
+
+    def extras(row):
+        _extras = {}
+        extra_type = {
+            'byes':'b (\d{1,3})',
+            'leg_byes':'lb (\d{1,3})',
+            'wides': 'w (\d{1,3})',
+            'no_balls': 'nb (\d{1,3})'
+        }
+        for e in extra_type:
+            try:
+                _extras[e] = re.search(extra_type[e], row[1]).group(1)
+            except AttributeError:
+                logger.info('failed to match: %s, Pattern: %s', row[1], extra_type[e])
+                continue
+        return _extras
+
+    match_scorecard = defaultdict(dict)
+    for i,table in enumerate(tables):
+        inning = (i//2) + 1
+        headers = table[0]
+        stats = []
+
+        if headers[0] == 'BATTING':
+            section = 'batting'
+            headers[0] = 'batsman'
+        else:
+            section = 'bowling'
+            headers[0] = 'bowler'
+
+        for row in table[1]:
+            if len(row) != len(headers):
+                if row[0] == 'Extras':
+                    match_scorecard[f'inning_{inning}']['extras'] = extras(row) 
+                if row[0] == 'TOTAL':
+                    match_scorecard[f'inning_{inning}']['totals'] = total(row)
+                continue
+            row_dict = {(header if header != '\xa0' else 'out'):(row[i] if i != 1 else how_out(row[i])) for i,header in enumerate(headers)}
+            row_dict[list(row_dict.keys())[0]] = player_id_from_link(row_dict[list(row_dict.keys())[0]])
+            stats.append(row_dict)
+
+        match_scorecard[f'inning_{inning}'][section] = stats
+    return dict(match_scorecard)

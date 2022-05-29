@@ -9,7 +9,7 @@ from espncricinfo.match import Match
 from codebase.match_data import MatchData
 from pprint import pprint
 
-TEST_MATCH_ID = '1263466'
+TEST_MATCH_ID = 352662
 OLDEST_MATCH_ID = '62396'
 
 def test_full_comms_grab(matchId):
@@ -34,8 +34,8 @@ def print_comms_data():
     
 if __name__ == '__main__':
     start = timeit.default_timer()
-    # test_full_comms_grab(TEST_MATCH_ID)
-    print_comms_data()
+    test_full_comms_grab(TEST_MATCH_ID)
+    # print_comms_data()
     stop = timeit.default_timer()
     print('Time: ', start-stop)
     

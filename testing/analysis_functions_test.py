@@ -31,11 +31,25 @@ def test_cricket_totals(player_id, m, is_object_id=False, by_innings=False):
     print('Bowling\n------')
     print(bowl)
     print()
+
+def test_get_career_batting_graph(player_id, _format='test', window_size=12):
+    af.get_career_batting_graph(player_id, _format=_format, window_size=window_size)
+
+def test_running_average(player_id, _format='test'):
+    running_average = af.get_running_average(player_id)
+
+def test_get_figures_from_scorecard(player_id, match, _type):
+    figures = af.get_figures_from_scorecard(player_id, match, _type)
+    return figures
+
 if __name__ == '__main__':
     start = timeit.default_timer()
     # print(test_aggregate_fetch(M))
     # test_player_contributions(M, is_object_id=True, by_innings=True)
-    test_cricket_totals(PLAYER_ID, M, is_object_id=True, by_innings=True)
+    # test_cricket_totals(PLAYER_ID, M, is_object_id=True, by_innings=True)
+    # test_running_average(PLAYER_ID)
+    # test_get_career_batting_graph(PLAYER_ID)
+    print(test_get_figures_from_scorecard(PLAYER_ID, M, 'bat'))
     stop = timeit.default_timer()
     print('Time: ', abs(start-stop))
         

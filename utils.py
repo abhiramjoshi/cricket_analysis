@@ -36,6 +36,9 @@ s_logger.setFormatter(s_formatter)
 logger.addHandler(f_logger)
 logger.addHandler(s_logger)
 
+class PlayerNotPartOfMatch(Exception):
+    pass
+
 class NoMatchCommentaryError(Exception):
     pass
 
