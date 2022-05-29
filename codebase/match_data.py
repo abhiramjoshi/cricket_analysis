@@ -46,6 +46,8 @@ class MatchData(Match):
                     init_response = init_future.result()
                     overs = init_response.json()['nextInningOver'] 
                     if overs == 'null' or overs is None:
+                        innings_comm_buffer += init_response.json()['comments']
+                        full_comms.append(list(reversed(innings_comm_buffer)))
                         continue
                     
                     innings_comm_buffer += init_response.json()['comments']
@@ -98,7 +100,7 @@ class MatchData(Match):
         """
         Flatten and return full comms
         """
-        if self.full_comms is None:
+        if self.full_comms is None or not self.full_comms:
             return None
         if not isinstance(self.full_comms[0], list):
             return list(reversed([ball for ball in self.full_comms]))
