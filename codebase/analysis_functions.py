@@ -462,7 +462,7 @@ def get_career_batting_graph(player_id, _format = 'test', window_size = 12):
     y_range = [0, max(innings_df.runs) + 20]
 
     fig, ax1 = plt.subplots(figsize=(18,10)) 
-    #sns.set_theme()
+    sns.set_theme()
     sns.lineplot(data = {'Average': running_av, f'Last {window_size} Innings': recent_form}, sort = False, ax=ax1, palette='rocket')
 
     ax1.set_ylim(y_range)
@@ -470,4 +470,7 @@ def get_career_batting_graph(player_id, _format = 'test', window_size = 12):
     ax2 = ax1.twinx()
 
     sns.barplot(data = innings_df, x=innings_df.index, y=innings_df.runs, alpha=0.5, ax=ax2, hue=innings_df.continent, palette='mako', dodge=False)
+    x_dates = innings_df.date.dt.strftime('%d-%m-%Y')
+    ax2.set_xticklabels(labels=x_dates, rotation=90)
     ax2.set_ylim(y_range)
+    ax2.xaxis.set_major_locator(plt.MaxNLocator(5))
