@@ -165,7 +165,7 @@ def _get_player_contribution(player_id:str or int, _match:match.MatchData, _type
             # _comm
     return comms
 
-def get_cricket_totals(player_id, matches, _type='both', by_innings=False, is_object_id=False):
+def get_cricket_totals(player_id, matches, _type='both', by_innings=False, is_object_id=False, from_scorecards=False):
     if not isinstance(matches, Iterable):
         matches = [matches]
     
@@ -176,7 +176,7 @@ def get_cricket_totals(player_id, matches, _type='both', by_innings=False, is_ob
         try:
             if not isinstance(_match, match.MatchData):
                 _match = match.MatchData(_match)
-            contribution = _cricket_totals(player_id, _match, _type, by_innings, is_object_id)
+            contribution = _cricket_totals(player_id, _match, _type, by_innings, is_object_id, from_scorecards=from_scorecards)
             if _type == 'both':
                 for i,inning in enumerate(contribution['bat']+contribution['bowl']):
                     contributions.append({**inning, **{key:contribution[key] for key in contribution.keys() if key not in ['bat', 'bowl']}})
@@ -188,7 +188,7 @@ def get_cricket_totals(player_id, matches, _type='both', by_innings=False, is_ob
             logger.warning('Match ID: %s not found', _match)
     return contributions
 
-def _cricket_totals(player_id, m:match.MatchData, _type='both', by_innings=False, is_object_id=False):
+def _cricket_totals(player_id, m:match.MatchData, _type='both', by_innings=False, is_object_id=False, from_scorecards=False):
     """
     Get the cricketing totals for the players. I.e. their stats in the collected innings.
     """
@@ -205,6 +205,8 @@ def _cricket_totals(player_id, m:match.MatchData, _type='both', by_innings=False
     if _type != 'bat':
         bowling_figures = []
         try:
+            if from_scorecards:
+                raise utils.NoMatchCommentaryError
             bowling_dfs = _get_player_contribution(player_id, m, 'bowl', by_innings=by_innings, is_object_id=is_object_id)
             if not by_innings:
                 bowling_dfs = pd.concat(bowling_dfs, ignore_index=True, axis=0)
@@ -231,6 +233,8 @@ def _cricket_totals(player_id, m:match.MatchData, _type='both', by_innings=False
     if _type != 'bowl':
         batting_figures = []
         try:
+            if from_scorecards:
+                raise utils.NoMatchCommentaryError
             batting_dfs = _get_player_contribution(player_id, m, 'bat', by_innings=by_innings, is_object_id=is_object_id)
             if not by_innings:
                 batting_dfs = pd.concat(batting_dfs, ignore_index=True, axis=0)
@@ -447,9 +451,11 @@ def get_player_team(player_id, _match:match.MatchData, is_object_id=False):
     else:
         raise utils.PlayerNotPartOfMatch('Player not part of match')
 
-def get_career_batting_graph(player_id, _format = 'test', barhue=None, window_size = 12):
+def get_career_batting_graph(player_id:str or int, _format:str = 'test', dates:str=None, barhue:str=None, window_size:int = 12):
+    """Gets player contributions between the dates provided and graphs the innings, running average and form average"""
+    
     logger.info('Getting match list for player, %s', player_id)
-    match_list = wsf.player_match_list(player_id, _format=_format)
+    match_list = wsf.player_match_list(player_id, dates=dates, _format=_format)
     logger.info('Getting player contributions for %s', player_id)
     innings = get_cricket_totals(player_id, match_list, _type='bat', by_innings=True, is_object_id=True)
     innings_df = pd.DataFrame(innings)
@@ -472,8 +478,10 @@ def get_career_batting_graph(player_id, _format = 'test', barhue=None, window_si
 
     ax2 = ax1.twinx()
 
-    sns.lineplot(data = {'Average': running_av, f'Last {window_size} Innings': recent_form}, sort = False, ax=ax2, palette='rocket', linewidth=3)
+    sns.lineplot(data = {'Average': running_av, f'Last {window_size} Innings': recent_form}, sort = False, ax=ax2, palette='rocket', linewidth=2)
     ax2.set_ylim(y_range)
     x_dates = innings_df.date.dt.strftime('%d-%m-%Y')
     ax1.set_xticklabels(labels=x_dates, rotation=90);
     ax1.xaxis.set_major_locator(plt.MaxNLocator(5))
+    ax1.margins(x=0)
+    
