@@ -32,8 +32,8 @@ def test_cricket_totals(player_id, m, is_object_id=False, by_innings=False):
     print(bowl)
     print()
 
-def test_get_career_batting_graph(player_id, _format='test', window_size=12):
-    af.get_career_batting_graph(player_id, _format=_format, window_size=window_size)
+def test_get_career_batting_graph(player_id, dates=None, _format='test', window_size=12):
+    af.get_career_batting_graph(player_id, dates=dates, _format=_format, window_size=window_size)
 
 def test_running_average(player_id, _format='test'):
     running_average = af.get_running_average(player_id)
@@ -48,8 +48,8 @@ if __name__ == '__main__':
     # test_player_contributions(M, is_object_id=True, by_innings=True)
     # test_cricket_totals(PLAYER_ID, M, is_object_id=True, by_innings=True)
     # test_running_average(PLAYER_ID)
-    # test_get_career_batting_graph(PLAYER_ID)
-    print(test_get_figures_from_scorecard(PLAYER_ID, M, 'bat'))
+    test_get_career_batting_graph(PLAYER_ID, dates='2020-01-01:')
+    #print(test_get_figures_from_scorecard(PLAYER_ID, M, 'bat'))
     stop = timeit.default_timer()
     print('Time: ', abs(start-stop))
         
