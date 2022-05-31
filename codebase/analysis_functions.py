@@ -126,7 +126,7 @@ def get_figures_from_scorecard(player_id, match, _type):
             batting_figures.append(inning_batting_figures)
         return batting_figures
 
-def get_player_contributions(player_id:str|int, matches:list[match.MatchData], _type = 'both', by_innings = False, is_object_id=False):
+def get_player_contributions(player_id:str or int, matches:list[match.MatchData], _type = 'both', by_innings = False, is_object_id=False):
     if not isinstance(matches, Iterable):
         matches = [matches]
     
@@ -142,7 +142,7 @@ def get_player_contributions(player_id:str|int, matches:list[match.MatchData], _
 
     return contributions
 
-def _get_player_contribution(player_id:str|int, _match:match.MatchData, _type = 'both', by_innings = False, is_object_id=False):
+def _get_player_contribution(player_id:str or int, _match:match.MatchData, _type = 'both', by_innings = False, is_object_id=False):
     """
     Get player innings from a match commentary
     """
