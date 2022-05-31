@@ -14,8 +14,8 @@ def test_tables(url, table_name='Match by match list'):
     result = wsf.read_statsguru(url, table_name)
     return result
 
-def test_player_match_list(player_id, _format = 'test'):
-    result = wsf.player_match_list(player_id, _format)
+def test_player_match_list(player_id, _format = 'test', dates=None):
+    result = wsf.player_match_list(player_id, dates, _format)
     return result
 
 def test_get_match_list():
@@ -27,8 +27,8 @@ if __name__ == '__main__':
     PLAYER_ID = '253802'
     start = timeit.default_timer()
     # tables = test_tables(TEST_MATCHES_URL, table_name=None)
-    # player_match_list = test_player_match_list(PLAYER_ID, _format='odi')
-    match_list = wsf.get_match_list(years=['2023'])
+    match_list = test_player_match_list(PLAYER_ID)
+    # match_list = wsf.get_match_list(years=['2023'])
     stop = timeit.default_timer()
     print('Time taken: ', stop-start)
     print(match_list)

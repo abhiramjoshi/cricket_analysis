@@ -112,9 +112,16 @@ def match_ids_and_links(table, match_links):
         return list(zip(match_ids, match_list))
     return match_ids
 
-def player_match_list(player_id, _format='test', match_links = False):
+def player_match_list(player_id, dates=None, _format='test', match_links = False):
     url = get_statsguru_player_url(player_id, _format)
     table = read_statsguru(url, table_name='Match by match list')[0]
+    table['Start Date'] = pd.to_datetime(table['Start Date'], format='%d %b %Y')
+    if dates:
+        dates = dates.split(':')
+        if dates[0]:
+            table = table[table['Start Date'] >= dates[0]]
+        if dates[1]:
+            table = table[table['Start Date'] < dates[1]]
     matches = match_ids_and_links(table, match_links)
     return matches
 
