@@ -163,6 +163,16 @@ def get_match_list(years=[date.today().year], _format='test', match_links=False,
     
     return matches
 
+def player_id_from_link(value:tuple[str], playername=True):
+    player_name = value[0].replace('(c)', '').replace('†', '').strip().lower().replace(' ', '-')
+    if playername:
+        pattern = f'/player/{player_name}-(\d+)'
+    else:
+        pattern = f'/player/(\d+)'
+    matches = re.search(pattern, value[1])
+    player_object_id = matches.group(1)
+    return (value[0], player_object_id)
+
 def get_match_scorecard(url):
     session = create_retry_session()
     logger.debug(f'Sending get request to {url}')
@@ -181,12 +191,6 @@ def get_match_scorecard(url):
         except AttributeError as e:
             logger.debug(e)
             continue
-
-    def player_id_from_link(value:tuple[str]):
-        player_name = value[0].replace('(c)', '').replace('†', '').strip().lower().replace(' ', '-')
-        matches = re.match(f'/player/{player_name}-(\d+)', value[1])
-        player_object_id = matches.group(1)
-        return (value[0], player_object_id)
 
     def how_out(value):
         if 'st ' in value:
