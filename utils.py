@@ -1,6 +1,7 @@
 import itertools
 import logging
 import os
+import json
 from datetime import datetime
 from sklearn.model_selection import cross_validate, GridSearchCV
 import numpy as np
@@ -10,6 +11,8 @@ from sklearn.base import TransformerMixin
 import sklearn.utils
 import pandas as pd
 from copy import deepcopy
+import pickle
+from codebase.settings import DATA_LOCATION
 LOGDIR = './logs'
 
 if not os.path.exists(LOGDIR):
@@ -40,6 +43,9 @@ class PlayerNotPartOfMatch(Exception):
     pass
 
 class NoMatchCommentaryError(Exception):
+    pass
+
+class RetiredHurtError(Exception):
     pass
 
 class DenseTransformer(TransformerMixin):
@@ -221,3 +227,34 @@ class GridSearchCV_Self_Implemented():
 
     def predict(self, X):
         return self.best_estimator_.predict(X)
+
+def load_data(match_id, suffix, data_folder=DATA_LOCATION, subfilepath='', file_ext='json'):
+    try:
+        if os.path.exists(os.path.join(data_folder, subfilepath, f'{match_id}_{suffix}.p')):
+                with open(os.path.join(data_folder, subfilepath, f'{match_id}_{suffix}.p'), 'rb') as jf:
+                    logger.info(f"Loading data from {os.path.join(data_folder, subfilepath, f'{match_id}_{suffix}.p')}")
+                    return pickle.load(jf)
+        elif os.path.exists(os.path.join(data_folder, subfilepath, f'{match_id}_{suffix}.{file_ext}')):
+                with open(os.path.join(data_folder, subfilepath, f'{match_id}_{suffix}.{file_ext}'), 'r', encoding='utf-8') as jf:
+                    logger.info(f"Loading data from {os.path.join(data_folder, subfilepath, f'{match_id}_{suffix}.{file_ext}')}")
+                    if file_ext == 'json':
+                        return json.load(jf)
+                    else:
+                        return jf.read()
+    except UnicodeDecodeError:
+        pass
+    
+    return False
+
+def save_data(match_id, data, suffix, data_folder=DATA_LOCATION, subfilepath='', file_ext='json', serialize=True):
+    if serialize:
+        with open(os.path.join(data_folder, subfilepath, f'{match_id}_{suffix}.p'), 'wb') as f:
+            logger.info(f"Saving data to {os.path.join(data_folder, subfilepath, f'{match_id}_{suffix}.p')}")
+            pickle.dump(data, f)
+    else: 
+        with open(os.path.join(data_folder, subfilepath, f'{match_id}_{suffix}.{file_ext}'), 'w', encoding='utf-8') as f:
+            logger.info(f"Saving data to {os.path.join(data_folder, subfilepath, f'{match_id}_{suffix}.{file_ext}')}")
+            if file_ext == 'json':
+                f.write(json.dumps(data))
+            else:
+                f.write(data)
