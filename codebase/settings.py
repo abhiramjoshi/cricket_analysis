@@ -6,14 +6,15 @@ FULL_COMMS = os.path.join(BASE_PATH, "data", 'full_comms')
 MATCH_JSONS = os.path.join(BASE_PATH, "data", 'match_jsons')
 HTMLS = os.path.join(BASE_PATH, "data", 'htmls')
 ANALYSIS = os.path.join(BASE_PATH, "data", 'analysis_data')
-
+SCORECARDS = os.path.join(BASE_PATH, "data", "scorecards")
 
 paths = [
     DATA_LOCATION,
     FULL_COMMS,
     MATCH_JSONS,
     HTMLS,
-    ANALYSIS
+    ANALYSIS,
+    SCORECARDS
 ]
 
 for _path in paths:

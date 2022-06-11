@@ -9,6 +9,9 @@ from collections import defaultdict
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
 from utils import logger
+import os
+from codebase.settings import SCORECARDS
+import utils
 
 BASE_STATS_URL = "https://stats.espncricinfo.com"
 
@@ -61,9 +64,9 @@ def read_statsguru_table(table_html:BeautifulSoup):
         for element in row_html.find_all('td'):
             try:
                 link = element.find('a')['href']
-                row.append((element.text, link))
+                row.append((element.text.replace('\xa0', ''), link))
             except TypeError:
-                row.append(element.text)
+                row.append(element.text.replace('\xa0', ''))
         table_body.append(row)
     # table_body.insert(0, headers)
     return headers, table_body
@@ -112,9 +115,17 @@ def match_ids_and_links(table, match_links):
         return list(zip(match_ids, match_list))
     return match_ids
 
-def player_match_list(player_id, _format='test', match_links = False):
+def player_match_list(player_id, dates=None, _format='test', match_links = False):
+    logger.info("Getting match list for player: %s Dates: %s", player_id, dates)
     url = get_statsguru_player_url(player_id, _format)
     table = read_statsguru(url, table_name='Match by match list')[0]
+    table['Start Date'] = pd.to_datetime(table['Start Date'], format='%d %b %Y')
+    if dates:
+        dates = dates.split(':')
+        if dates[0]:
+            table = table[table['Start Date'] >= dates[0]]
+        if dates[1]:
+            table = table[table['Start Date'] < dates[1]]
     matches = match_ids_and_links(table, match_links)
     return matches
 
@@ -156,15 +167,49 @@ def get_match_list(years=[date.today().year], _format='test', match_links=False,
     
     return matches
 
-def get_match_scorecard(url):
-    session = create_retry_session()
-    logger.debug(f'Sending get request to {url}')
-    response = session.get(url)
-    html = BeautifulSoup(response.content, 'html.parser')
-    scorecard_block = html.find('div', {'class':"lg:ds-container lg:ds-mx-auto lg:ds-px-5 lg:ds-pt-4"}).findChild("div", {'class':'ds-grow'})
-    title_card = scorecard_block.find('div',{"class":"ds-w-full ds-bg-fill-content-prime ds-overflow-hidden ds-rounded-xl ds-border ds-border-line"})
-    scorecards = title_card.find_next_sibling('div', {'class':'ds-mt-3'})
-    scorecard = scorecards.findAll('table')
+def player_id_from_link(value:tuple[str], playername=True):
+    logger.debug('Player_ID_from_link value: %s', value)
+    player_name = value[0].replace('(c)', '').replace('†', '').strip().lower().replace(' ', '-').replace("'", '-').replace(".", '-') #create player name by cricinfo's convention
+    player_name = player_name.replace('--', '-').strip('-') #replace double dashes and dashes at the ends of the strings
+    if playername:
+        pattern = '/player/[a-z\-]+-(\d+)' #catch all pattern
+        #pattern = f'/player/{player_name}-(\d+)'
+    else:
+        pattern = f'/player/(\d+)'
+    matches = re.search(pattern, value[1])
+    logger.debug('Id matches object: %s', matches)
+    player_object_id = matches.group(1)
+    return (value[0], player_object_id)
+
+def get_match_scorecard(url, match_id, try_local=True, save=True, skip_ret_hurt_err=True, retries=3):
+    if try_local:
+        if os.path.exists(os.path.join(SCORECARDS, f'{match_id}_scorecard.json')):
+            data = utils.load_data(match_id, suffix='scorecard', data_folder=SCORECARDS)
+            if data:
+                return data
+    for i in range(retries):
+        try:
+            session = create_retry_session()
+            logger.debug(f'Sending get request to {url}. Retry: {i+1}')
+            response = requests.get(url)
+            #logger.debug([response.url for response in response.history])
+            sleep(i)
+            redirect_url = response.url
+            logger.debug("Redirected match URL: %s", redirect_url)
+            if 'live-cricket-score' in redirect_url:
+                redirect_url = redirect_url.replace('/live-cricket-score', '')
+            if 'full-scorecard' not in redirect_url:
+                redirect_url = redirect_url+'/full-scorecard'
+            logger.debug('Redirected URL after handling is %s, sending request here instead', redirect_url)
+            response = session.get(redirect_url)
+            html = BeautifulSoup(response.content, 'html.parser')
+            scorecard_block = html.find('div', {'class':"lg:ds-container lg:ds-mx-auto lg:ds-px-5 lg:ds-pt-4"}).findChild("div", {'class':'ds-grow'})
+            title_card = scorecard_block.find('div',{"class":"ds-w-full ds-bg-fill-content-prime ds-overflow-hidden ds-rounded-xl ds-border ds-border-line"})
+            scorecards = title_card.find_next_sibling('div', {'class':'ds-mt-3'})
+            scorecard = scorecards.findAll('table')
+            break
+        except AttributeError:
+            continue
     logger.debug('Fetched scorecard')
     logger.debug('Parsing scorecard')
     tables = []
@@ -175,13 +220,7 @@ def get_match_scorecard(url):
             logger.debug(e)
             continue
 
-    def player_id_from_link(value:tuple[str]):
-        player_name = value[0].replace('(c)', '').replace('†', '').strip().lower().replace(' ', '-')
-        matches = re.match(f'/player/{player_name}-(\d+)', value[1])
-        player_object_id = matches.group(1)
-        return (value[0], player_object_id)
-
-    def how_out(value):
+    def how_out(value, skip_ret_hurt_err=True):
         if 'st ' in value:
             return 'stumped'
         if 'c ' in value:
@@ -191,6 +230,10 @@ def get_match_scorecard(url):
         if 'lbw ' in value:
             return 'lbw'
         if 'not out' in value:
+            return False
+        if 'retired hurt' in value:
+            if not skip_ret_hurt_err:
+                raise utils.RetiredHurtError
             return False
         if ' b ' in value or 'b ' in value:
             return 'bowled'
@@ -208,7 +251,7 @@ def get_match_scorecard(url):
             try:
                 _totals[t] = re.search(total_types[t], row[1]).group(1)
             except AttributeError:
-                logger.info('failed to match: %s, Pattern: %s', row[1], total_types[t])
+                logger.debug('failed to match: %s, Pattern: %s', row[1], total_types[t])
                 continue
         
         _totals['score'] = row[2]
@@ -227,7 +270,7 @@ def get_match_scorecard(url):
             try:
                 _extras[e] = re.search(extra_type[e], row[1]).group(1)
             except AttributeError:
-                logger.info('failed to match: %s, Pattern: %s', row[1], extra_type[e])
+                logger.debug('failed to match: %s, Pattern: %s', row[1], extra_type[e])
                 continue
         return _extras
 
@@ -251,9 +294,12 @@ def get_match_scorecard(url):
                 if row[0] == 'TOTAL':
                     match_scorecard[f'inning_{inning}']['totals'] = total(row)
                 continue
-            row_dict = {(header if header != '\xa0' else 'out'):(row[i] if i != 1 else how_out(row[i])) for i,header in enumerate(headers)}
+            row_dict = {(header if header != '\xa0' else 'out'):(row[i] if i != 1 else how_out(row[i], skip_ret_hurt_err=skip_ret_hurt_err)) for i,header in enumerate(headers)}
             row_dict[list(row_dict.keys())[0]] = player_id_from_link(row_dict[list(row_dict.keys())[0]])
             stats.append(row_dict)
 
         match_scorecard[f'inning_{inning}'][section] = stats
+
+        if save:
+            utils.save_data(match_id=match_id, data=dict(match_scorecard), suffix='scorecard', data_folder=SCORECARDS, serialize=False)
     return dict(match_scorecard)

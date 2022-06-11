@@ -89,9 +89,15 @@ def get_aggregates(match_object: match.MatchData, event):
 
     return event_df
 
-def get_figures_from_scorecard(player_id, match, _type):
-    url = match.match_url
-    scorecard = wsf.get_match_scorecard(url)
+def get_figures_from_scorecard(player_id, _match:match.MatchData, _type):
+    url = _match.match_url
+    scorecard = wsf.get_match_scorecard(url, match_id=_match.match_id)
+
+    def int_or_none(value):
+        try:
+            return int(value)
+        except ValueError:
+            return None
 
     if _type == 'bowl':
         all_bowlers = [bowler for innings in scorecard for bowler in scorecard[innings]['bowling']]
@@ -101,10 +107,10 @@ def get_figures_from_scorecard(player_id, match, _type):
         for inning_figures in figures:
             inning_bowling_figures = {
                     'overs': inning_figures['O'],
-                    'runs': int(inning_figures['R']),
+                    'runs': int_or_none(inning_figures['R']),
                     'dot_balls': 0,
-                    'wides': int(inning_figures['WD']),
-                    'noballs': int(inning_figures['NB'])
+                    'wides': int_or_none(inning_figures['WD']),
+                    'noballs': int_or_none(inning_figures['NB'])
                     #need to add wickets, maidens, 4s, 6s, econ
                 }
             bowling_figures.append(inning_bowling_figures)
@@ -116,12 +122,13 @@ def get_figures_from_scorecard(player_id, match, _type):
         batting_figures = []
         for inning_figures in figures:
             inning_batting_figures = {
-                    'runs': int(inning_figures['R']),
-                    'balls_faced': int(inning_figures['B']),
-                    'fours': int(inning_figures['4s']),
-                    'six': int(inning_figures['6s']),
+                    'runs': int_or_none(inning_figures['R']),
+                    'balls_faced': int_or_none(inning_figures['B']),
+                    'fours': int_or_none(inning_figures['4s']),
+                    'six': int_or_none(inning_figures['6s']),
                     'dot_balls': 0,
-                    'not_out': not bool(inning_figures['out'])
+                    'not_out': not bool(inning_figures['out']),
+                    'how_out': inning_figures['out']
                 }
             batting_figures.append(inning_batting_figures)
         return batting_figures
@@ -165,7 +172,7 @@ def _get_player_contribution(player_id:str or int, _match:match.MatchData, _type
             # _comm
     return comms
 
-def get_cricket_totals(player_id, matches, _type='both', by_innings=False, is_object_id=False):
+def get_cricket_totals(player_id, matches, _type='both', by_innings=False, is_object_id=False, from_scorecards=False):
     if not isinstance(matches, Iterable):
         matches = [matches]
     
@@ -176,7 +183,7 @@ def get_cricket_totals(player_id, matches, _type='both', by_innings=False, is_ob
         try:
             if not isinstance(_match, match.MatchData):
                 _match = match.MatchData(_match)
-            contribution = _cricket_totals(player_id, _match, _type, by_innings, is_object_id)
+            contribution = _cricket_totals(player_id, _match, _type, by_innings, is_object_id, from_scorecards=from_scorecards)
             if _type == 'both':
                 for i,inning in enumerate(contribution['bat']+contribution['bowl']):
                     contributions.append({**inning, **{key:contribution[key] for key in contribution.keys() if key not in ['bat', 'bowl']}})
@@ -188,7 +195,7 @@ def get_cricket_totals(player_id, matches, _type='both', by_innings=False, is_ob
             logger.warning('Match ID: %s not found', _match)
     return contributions
 
-def _cricket_totals(player_id, m:match.MatchData, _type='both', by_innings=False, is_object_id=False):
+def _cricket_totals(player_id, m:match.MatchData, _type='both', by_innings=False, is_object_id=False, from_scorecards=False):
     """
     Get the cricketing totals for the players. I.e. their stats in the collected innings.
     """
@@ -205,6 +212,8 @@ def _cricket_totals(player_id, m:match.MatchData, _type='both', by_innings=False
     if _type != 'bat':
         bowling_figures = []
         try:
+            if from_scorecards:
+                raise utils.NoMatchCommentaryError
             bowling_dfs = _get_player_contribution(player_id, m, 'bowl', by_innings=by_innings, is_object_id=is_object_id)
             if not by_innings:
                 bowling_dfs = pd.concat(bowling_dfs, ignore_index=True, axis=0)
@@ -231,6 +240,8 @@ def _cricket_totals(player_id, m:match.MatchData, _type='both', by_innings=False
     if _type != 'bowl':
         batting_figures = []
         try:
+            if from_scorecards:
+                raise utils.NoMatchCommentaryError
             batting_dfs = _get_player_contribution(player_id, m, 'bat', by_innings=by_innings, is_object_id=is_object_id)
             if not by_innings:
                 batting_dfs = pd.concat(batting_dfs, ignore_index=True, axis=0)
@@ -248,13 +259,14 @@ def _cricket_totals(player_id, m:match.MatchData, _type='both', by_innings=False
                     'fours': batting_df_agg['isFour'],
                     'six': batting_df_agg['isSix'],
                     'dot_balls': (batting_df['bowlerRuns'] == 0).sum(),
-                    'not_out': not_out
+                    'not_out': not_out,
+                    'how_out': None
                 }
                 batting_figures.append(inning_batting_figures)
         except utils.NoMatchCommentaryError:
             logger.info("Getting batting figures from scorecard")
             batting_figures += get_figures_from_scorecard(player_id, m, 'bat')
-     
+        logger.debug("Match ID: %s\nBatting: %s\nBowling: %s",m.match_id, batting_figures, bowling_figures) 
     return {'bat': batting_figures, 'bowl': bowling_figures, 'date':datetime.strptime(date, "%Y-%m-%d"),'team':team, 'opposition': opps, 'ground':ground, 'continent':continent}
 
 def process_text_comms(df:pd.DataFrame, columns = ['dismissalText', 'commentPreTextItems', 'commentTextItems', 'commentPostTextItems', 'commentVideos']):
@@ -374,7 +386,7 @@ def describe_data_set(dataset, title, label_names=None):
 def calculate_running_average(innings_df):
 
     _running_average = []
-
+    innings_df = innings_df[innings_df.runs.notna()]
     total_runs = 0
     out = 0
 
@@ -389,9 +401,9 @@ def calculate_running_average(innings_df):
 
     return _running_average
 
-def calculate_recent_form_average(innings_df, window_size=12):
+def calculate_recent_form_average(innings_df:pd.DataFrame, window_size=12):
     last_x_average = []
-
+    innings_df = innings_df[innings_df.runs.notna()]
     window_runs = 0
     window_out = 0
 
@@ -447,9 +459,11 @@ def get_player_team(player_id, _match:match.MatchData, is_object_id=False):
     else:
         raise utils.PlayerNotPartOfMatch('Player not part of match')
 
-def get_career_batting_graph(player_id, _format = 'test', window_size = 12):
+def get_career_batting_graph(player_id:str or int, _format:str = 'test', dates:str=None, barhue:str=None, window_size:int = 12):
+    """Gets player contributions between the dates provided and graphs the innings, running average and form average"""
+    
     logger.info('Getting match list for player, %s', player_id)
-    match_list = wsf.player_match_list(player_id, _format=_format)
+    match_list = wsf.player_match_list(player_id, dates=dates, _format=_format)
     logger.info('Getting player contributions for %s', player_id)
     innings = get_cricket_totals(player_id, match_list, _type='bat', by_innings=True, is_object_id=True)
     innings_df = pd.DataFrame(innings)
@@ -458,16 +472,50 @@ def get_career_batting_graph(player_id, _format = 'test', window_size = 12):
     logger.info('Calculating recent form average with window size %s for %s', window_size, player_id)
     recent_form = get_recent_form_average(player_id, innings=innings, window_size=window_size)
 
+    if barhue is not None:
+        barhue = innings_df.barhue
+
     logger.info("Plotting career batting summary")
     y_range = [0, max(innings_df.runs) + 20]
 
     fig, ax1 = plt.subplots(figsize=(18,10)) 
     #sns.set_theme()
-    sns.lineplot(data = {'Average': running_av, f'Last {window_size} Innings': recent_form}, sort = False, ax=ax1, palette='rocket')
+    sns.barplot(data = innings_df, x=innings_df.index, y=innings_df.runs, alpha=0.8, ax=ax1, hue=barhue, palette='mako', dodge=False)
 
     ax1.set_ylim(y_range)
 
     ax2 = ax1.twinx()
 
-    sns.barplot(data = innings_df, x=innings_df.index, y=innings_df.runs, alpha=0.5, ax=ax2, hue=innings_df.continent, palette='mako', dodge=False)
+    sns.lineplot(data = {'Average': running_av, f'Last {window_size} Innings': recent_form}, sort = False, ax=ax2, palette='rocket', linewidth=2)
     ax2.set_ylim(y_range)
+    x_dates = innings_df.date.dt.strftime('%d-%m-%Y')
+    ax1.set_xticklabels(labels=x_dates, rotation=90);
+    ax1.xaxis.set_major_locator(plt.MaxNLocator(5))
+    ax1.margins(x=0)
+
+def percentagize_x_axis(data, _round = 2):
+    length = len(data)
+    return [round(x*(100/length), _round) for x in range(length)]
+
+def normalized_career_length(career_data:dict):
+    #recent_form_df = {}
+    #max_length = career_data.index(max(career_data, key=len))
+    #index = set([i for data in career_data for i in percentagize_x_axis(data)])
+    #index = sorted(index)
+    full_df = pd.concat([pd.DataFrame(career_data[data], index=percentagize_x_axis(career_data[data]), columns=[data]) for data in career_data], axis=1)
+    full_df.sort_index(inplace=True)
+    return full_df
+
+def apply_aggregate_func_to_list(player_id_list, _func, disable_logging=True, **kwargs):
+    logger.disabled = disable_logging
+    applied_values = {}
+    for player in player_id_list:
+        player_match_list = wsf.player_match_list(player)
+        player_innings_df = get_cricket_totals(player, player_match_list, _type='bat', by_innings=True, is_object_id=True)
+        player_innings_df = pd.DataFrame(player_innings_df)
+        applied_values[player] = _func(player_innings_df, **kwargs)
+    
+    if disable_logging:
+        logger.disabled = not disable_logging
+    
+    return applied_values
