@@ -127,7 +127,8 @@ def get_figures_from_scorecard(player_id, _match:match.MatchData, _type):
                     'fours': int_or_none(inning_figures['4s']),
                     'six': int_or_none(inning_figures['6s']),
                     'dot_balls': 0,
-                    'not_out': not bool(inning_figures['out'])
+                    'not_out': not bool(inning_figures['out']),
+                    'how_out': inning_figures['out']
                 }
             batting_figures.append(inning_batting_figures)
         return batting_figures
@@ -258,7 +259,8 @@ def _cricket_totals(player_id, m:match.MatchData, _type='both', by_innings=False
                     'fours': batting_df_agg['isFour'],
                     'six': batting_df_agg['isSix'],
                     'dot_balls': (batting_df['bowlerRuns'] == 0).sum(),
-                    'not_out': not_out
+                    'not_out': not_out,
+                    'how_out': None
                 }
                 batting_figures.append(inning_batting_figures)
         except utils.NoMatchCommentaryError:
