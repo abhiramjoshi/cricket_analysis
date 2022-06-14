@@ -42,14 +42,18 @@ def test_get_figures_from_scorecard(player_id, match, _type):
     figures = af.get_figures_from_scorecard(player_id, match, _type)
     return figures
 
+def test_runout_while_nonstriker(commentary_df, player_id, match_object):
+    return af.check_runout_while_nonstriker(commentary_df=commentary_df, player_id=player_id, match_object=match_object)
+
 if __name__ == '__main__':
     start = timeit.default_timer()
+    commentary_df = af.pre_transform_comms(M)
     # print(test_aggregate_fetch(M))
     # test_player_contributions(M, is_object_id=True, by_innings=True)
     test_cricket_totals(PLAYER_ID, M, is_object_id=True, by_innings=True)
+    # print(test_runout_while_nonstriker(commentary_df, PLAYER_ID, M))
     # test_running_average(PLAYER_ID)
     # test_get_career_batting_graph(PLAYER_ID, dates='2020-01-01:')
     # print(test_get_figures_from_scorecard(PLAYER_ID, M, 'bat'))
     stop = timeit.default_timer()
     print('Time: ', abs(start-stop))
-        
