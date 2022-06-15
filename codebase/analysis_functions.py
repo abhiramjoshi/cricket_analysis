@@ -1,5 +1,5 @@
 import codebase.match_data as match
-from codebase import web_scrape_functions as wsf
+import codebase.web_scrape_functions as wsf
 import numpy as np
 import pandas as pd
 import sklearn.utils
@@ -91,7 +91,9 @@ def get_aggregates(match_object: match.MatchData, event):
 
     return event_df
 
-def get_figures_from_scorecard(player_id, _match:match.MatchData, _type):
+def get_figures_from_scorecard(player_id, _match:match.MatchData, _type, is_object_id=False):
+    if not is_object_id: #Change to object ID
+        player_id = get_player_map(_match, 'object_id', 'player_id')[player_id]
     url = _match.match_url
     scorecard = wsf.get_match_scorecard(url, match_id=_match.match_id)
 
@@ -143,24 +145,30 @@ def check_runout_while_nonstriker(commentary_df:pd.DataFrame, player_id, match_o
     wickets = wickets[wickets.batsmanPlayerId != int(player_id)]
     
     player_name = get_player_map(match_object, 'known_as')[int(player_id)].lower()
-    player_name_split = player_name.split()
-    if len([player_name]) == player_name_split:
-        player_names = player_name_split
-    else: 
-        player_names = player_name.split('-')
+    # player_name_split = player_name.split()
+    # if len([player_name]) == player_name_split:
+    #     player_names = player_name.split('-')
+    # else: 
+    #     player_names = player_name_split
     
-    contractions = ['ul', 'al', 'du']
-    for contraction in contractions:
-        try:
-            player_names.remove(contraction)
-        except ValueError:
-            pass
+    # contractions = ['ul', 'al', 'du']
+    # for contraction in contractions:
+    #     try:
+    #         player_names.remove(contraction)
+    #     except ValueError:
+    #         pass
 
     for i,wicket in wickets.iterrows():
-        if any(name in wicket.commentTextItems.lower() for name in player_names):
-            if int(player_id) != wicket.batsmanPlayerId:
+        if player_name in wicket.dismissalText.lower():
+            if 'run out' in wicket.dismissalText.lower():
                 if int(get_player_team(player_id, match_object)['team']) == int(wicket.battingTeam):
                     return i, wicket
+        # if len(wicket.commentTextItems.split()) < 10:
+        #     raise utils.NoMatchCommentaryError
+        # if any(name in wicket.commentTextItems.lower() for name in player_names):
+        #     if int(player_id) != wicket.batsmanPlayerId:
+        #         if int(get_player_team(player_id, match_object)['team']) == int(wicket.battingTeam):
+        #             return i, wicket
     return None, pd.DataFrame()
     
 
@@ -240,7 +248,7 @@ def _cricket_totals(player_id, m:match.MatchData, _type='both', by_innings=False
     """
     Get the cricketing totals for the players. I.e. their stats in the collected innings.
     """
-    if is_object_id:
+    if is_object_id: #Change from object id to player id
         player_id = int(get_player_map(m, 'player_id', 'object_id')[int(player_id)])
     batting_figures = None
     bowling_figures = None
@@ -257,7 +265,7 @@ def _cricket_totals(player_id, m:match.MatchData, _type='both', by_innings=False
         try:
             if from_scorecards:
                 raise utils.NoMatchCommentaryError
-            bowling_dfs = _get_player_contribution(player_id, m, 'bowl', by_innings=by_innings, is_object_id=False)
+            bowling_dfs = _get_player_contribution(player_id, m, 'bowl', by_innings=by_innings, is_object_id=(not is_object_id))
             if not by_innings:
                 bowling_dfs = pd.concat(bowling_dfs, ignore_index=True, axis=0)
             if not isinstance(bowling_dfs, list):
@@ -278,14 +286,14 @@ def _cricket_totals(player_id, m:match.MatchData, _type='both', by_innings=False
                 bowling_figures.append(inning_bowling_figures)
         except utils.NoMatchCommentaryError:
             logger.info("Getting bowling figures from scorecard")
-            bowling_figures += get_figures_from_scorecard(player_id, m, 'bowl')
+            bowling_figures += get_figures_from_scorecard(player_id, m, 'bowl', is_object_id=(not is_object_id))
     # else if player id in batting id, update batting figures
     if _type != 'bowl':
         batting_figures = []
         try:
             if from_scorecards:
                 raise utils.NoMatchCommentaryError
-            batting_dfs = _get_player_contribution(player_id, m, 'bat', by_innings=by_innings, is_object_id=False)
+            batting_dfs = _get_player_contribution(player_id, m, 'bat', by_innings=by_innings, is_object_id=(not is_object_id))
             if not by_innings:
                 batting_dfs = pd.concat(batting_dfs, ignore_index=True, axis=0)
             if not isinstance(batting_dfs, list):
@@ -308,7 +316,7 @@ def _cricket_totals(player_id, m:match.MatchData, _type='both', by_innings=False
                 batting_figures.append(inning_batting_figures)
         except utils.NoMatchCommentaryError:
             logger.info("Getting batting figures from scorecard")
-            batting_figures += get_figures_from_scorecard(player_id, m, 'bat')
+            batting_figures += get_figures_from_scorecard(player_id, m, 'bat', is_object_id=(not is_object_id))
         logger.debug("Match ID: %s\nBatting: %s\nBowling: %s",m.match_id, batting_figures, bowling_figures) 
     return {'bat': batting_figures, 'bowl': bowling_figures, 'date':datetime.strptime(date, "%Y-%m-%d"),'team':team, 'opposition': opps, 'ground':ground, 'continent':continent}
 
