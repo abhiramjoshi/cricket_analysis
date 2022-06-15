@@ -39,6 +39,9 @@ s_logger.setFormatter(s_formatter)
 logger.addHandler(f_logger)
 logger.addHandler(s_logger)
 
+class PlayerNotFoundError(Exception):
+    pass
+
 class PlayerNotPartOfMatch(Exception):
     pass
 
