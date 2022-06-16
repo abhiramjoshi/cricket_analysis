@@ -303,3 +303,11 @@ def get_match_scorecard(url, match_id, try_local=True, save=True, skip_ret_hurt_
         if save:
             utils.save_data(match_id=match_id, data=dict(match_scorecard), suffix='scorecard', data_folder=SCORECARDS, serialize=False)
     return dict(match_scorecard)
+
+def get_player_json(player_id):
+    session  = create_retry_session()
+    response = session.get(f"http://core.espnuk.org/v2/sports/cricket/athletes/{player_id}")
+    if response.status_code == 404:
+        raise utils.PlayerNotFoundError
+    else:
+        return response.json()

@@ -36,6 +36,11 @@ def get_balls_event(comms:pd.DataFrame, column_name:str, value, negative=False):
         event_df = comms[comms[column_name] == value]
     return event_df
 
+def get_player_dob(player_id):
+    json = wsf.get_player_json(player_id)
+    age = datetime.strptime(json['dateOfBirth'], '%Y-%m-%dT%H:%MZ')
+    return age
+
 def get_player_map(match_object:match.MatchData, map_column:str='card_long', map_id='player_id'):
     return {int(player[map_id]):player[map_column] for player in match_object.all_players}
 
@@ -510,9 +515,35 @@ def get_player_team(player_id, _match:match.MatchData, is_object_id=False):
     else:
         raise utils.PlayerNotPartOfMatch('Player not part of match')
 
-def get_career_batting_graph(player_id:str or int, _format:str = 'test', dates:str=None, barhue:str=None, window_size:int = 12):
-    """Gets player contributions between the dates provided and graphs the innings, running average and form average"""
-    
+def get_career_batting_graph(player_id:str or int, _format:str = 'test', player_age=None, dates:str=None, barhue:str=None, window_size:int = 12):
+    """
+    Gets player contributions between the dates provided and graphs the innings, running average and form average
+    NOTE: player_id is object_id.
+    """
+    if player_age:
+        player_dob = get_player_dob(player_id)
+        try:
+            player_age = player_age.split(':')
+            younger_bound = player_age[0]
+            if not bool(younger_bound):
+                younger_bound = player_dob
+            else:
+                younger_bound = int(younger_bound)
+                younger_bound = player_dob.replace(year=player_dob.year+int(younger_bound)).strftime('%Y=%m-%d')
+            try:
+                older_bound = player_age[1]
+                if not bool(older_bound):
+                    older_bound = datetime.now()
+                else:
+                    older_bound = player_dob.replace(year=player_dob.year+int(older_bound)).strftime('%Y=%m-%d')
+            except IndexError:
+                older_bound = int(younger_bound)+1
+        except ValueError:
+            logger.error('Invalid value for player age')
+
+        dates = f"{younger_bound}:{older_bound}"
+        
+
     logger.info('Getting match list for player, %s', player_id)
     match_list = wsf.player_match_list(player_id, dates=dates, _format=_format)
     logger.info('Getting player contributions for %s', player_id)
