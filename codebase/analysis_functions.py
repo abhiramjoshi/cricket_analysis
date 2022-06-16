@@ -529,13 +529,13 @@ def get_career_batting_graph(player_id:str or int, _format:str = 'test', player_
                 younger_bound = player_dob
             else:
                 younger_bound = int(younger_bound)
-                younger_bound = player_dob.replace(year=player_dob.year+int(younger_bound)).strftime('%Y=%m-%d')
+                younger_bound = player_dob.replace(year=player_dob.year+int(younger_bound)).strftime('%Y-%m-%d')
             try:
                 older_bound = player_age[1]
                 if not bool(older_bound):
                     older_bound = datetime.now()
                 else:
-                    older_bound = player_dob.replace(year=player_dob.year+int(older_bound)).strftime('%Y=%m-%d')
+                    older_bound = player_dob.replace(year=player_dob.year+int(older_bound)).strftime('%Y-%m-%d')
             except IndexError:
                 older_bound = int(younger_bound)+1
         except ValueError:
