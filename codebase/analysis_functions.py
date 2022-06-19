@@ -1,3 +1,4 @@
+from collections import defaultdict
 import codebase.match_data as match
 import codebase.web_scrape_functions as wsf
 import numpy as np
@@ -28,6 +29,31 @@ def pre_transform_comms(match_object:match.MatchData):
     innings_map = {inning['innings_number']: inning['team_id'] for inning in match_object.innings_list}
     df['battingTeam'] = df['inningNumber'].map(innings_map)
     return df
+
+def dates_from_age(player_id, age_range):
+    if age_range:
+        player_dob = get_player_dob(player_id)
+        try:
+            player_age = age_range.split(':')
+            younger_bound = player_age[0]
+            if not bool(younger_bound):
+                younger_bound = player_dob
+            else:
+                younger_bound = int(younger_bound)
+                younger_bound = player_dob.replace(year=player_dob.year+int(younger_bound)).strftime('%Y-%m-%d')
+            try:
+                older_bound = player_age[1]
+                if not bool(older_bound):
+                    older_bound = datetime.now()
+                else:
+                    older_bound = player_dob.replace(year=player_dob.year+int(older_bound)).strftime('%Y-%m-%d')
+            except IndexError:
+                older_bound = int(younger_bound)+1
+        except ValueError:
+            logger.error('Invalid value for player age')
+
+        return f"{younger_bound}:{older_bound}"
+    return None
 
 def get_balls_event(comms:pd.DataFrame, column_name:str, value, negative=False):
     if negative:
@@ -440,6 +466,9 @@ def describe_data_set(dataset, title, label_names=None):
     return groups
 
 def calculate_running_average(innings_df):
+    if innings_df.empty:
+        logger.info('No innings for player')
+        return None
 
     _running_average = []
     innings_df = innings_df[innings_df.runs.notna()]
@@ -458,6 +487,10 @@ def calculate_running_average(innings_df):
     return _running_average
 
 def calculate_recent_form_average(innings_df:pd.DataFrame, window_size=12):
+    if innings_df.empty:
+        logger.info('No innings for player')
+        return None
+
     last_x_average = []
     innings_df = innings_df[innings_df.runs.notna()]
     window_runs = 0
@@ -521,27 +554,7 @@ def get_career_batting_graph(player_id:str or int, _format:str = 'test', player_
     NOTE: player_id is object_id.
     """
     if player_age:
-        player_dob = get_player_dob(player_id)
-        try:
-            player_age = player_age.split(':')
-            younger_bound = player_age[0]
-            if not bool(younger_bound):
-                younger_bound = player_dob
-            else:
-                younger_bound = int(younger_bound)
-                younger_bound = player_dob.replace(year=player_dob.year+int(younger_bound)).strftime('%Y-%m-%d')
-            try:
-                older_bound = player_age[1]
-                if not bool(older_bound):
-                    older_bound = datetime.now()
-                else:
-                    older_bound = player_dob.replace(year=player_dob.year+int(older_bound)).strftime('%Y-%m-%d')
-            except IndexError:
-                older_bound = int(younger_bound)+1
-        except ValueError:
-            logger.error('Invalid value for player age')
-
-        dates = f"{younger_bound}:{older_bound}"
+        dates = dates_from_age(player_id, player_age)
         
 
     logger.info('Getting match list for player, %s', player_id)
@@ -588,14 +601,27 @@ def normalized_career_length(career_data:dict):
     full_df.sort_index(inplace=True)
     return full_df
 
-def apply_aggregate_func_to_list(player_id_list, _func, disable_logging=True, **kwargs):
+def apply_aggregate_func_to_list(player_id_list, _funcs, player_ages=None, disable_logging=True, **kwargs):
+    if player_ages:
+        if not isinstance(player_ages, list):
+            player_ages = [player_ages]
+        if len(player_ages) == 1:
+            player_ages = player_ages*len(player_id_list)
+        if len(player_ages) != len(player_id_list):
+            player_ages = player_ages + [':']*abs(len(player_ages) != len(player_id_list))
+            player_ages = player_ages[:len(player_id_list)]
+    else:
+        player_ages = [None for i in range(len(player_id_list))]
     logger.disabled = disable_logging
-    applied_values = {}
-    for player in player_id_list:
-        player_match_list = wsf.player_match_list(player)
+    applied_values = defaultdict(dict)
+    for i,player in enumerate(player_id_list):
+        dates = dates_from_age(player, player_ages[i])
+        player_match_list = wsf.player_match_list(player, dates=dates)
         player_innings_df = get_cricket_totals(player, player_match_list, _type='bat', by_innings=True, is_object_id=True)
         player_innings_df = pd.DataFrame(player_innings_df)
-        applied_values[player] = _func(player_innings_df, **kwargs)
+        for _func in _funcs:
+            function_name = re.search('function ([\_a-zA-Z]+) at', str(_func)).group(1)
+            applied_values[function_name][player] = _func(player_innings_df, **kwargs)
     
     if disable_logging:
         logger.disabled = not disable_logging
