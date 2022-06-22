@@ -548,46 +548,6 @@ def get_player_team(player_id, _match:match.MatchData, is_object_id=False):
     else:
         raise utils.PlayerNotPartOfMatch('Player not part of match')
 
-def get_career_batting_graph(player_id:str or int, _format:str = 'test', player_age=None, dates:str=None, barhue:str=None, window_size:int = 12):
-    """
-    Gets player contributions between the dates provided and graphs the innings, running average and form average
-    NOTE: player_id is object_id.
-    """
-    if player_age:
-        dates = dates_from_age(player_id, player_age)
-        
-
-    logger.info('Getting match list for player, %s', player_id)
-    match_list = wsf.player_match_list(player_id, dates=dates, _format=_format)
-    logger.info('Getting player contributions for %s', player_id)
-    innings = get_cricket_totals(player_id, match_list, _type='bat', by_innings=True, is_object_id=True)
-    innings_df = pd.DataFrame(innings)
-    logger.info('Calculating running average for %s', player_id)
-    running_av = get_running_average(player_id,innings=innings)
-    logger.info('Calculating recent form average with window size %s for %s', window_size, player_id)
-    recent_form = get_recent_form_average(player_id, innings=innings, window_size=window_size)
-
-    if barhue is not None:
-        barhue = innings_df.barhue
-
-    logger.info("Plotting career batting summary")
-    y_range = [0, max(innings_df.runs) + 20]
-
-    fig, ax1 = plt.subplots(figsize=(18,10)) 
-    #sns.set_theme()
-    sns.barplot(data = innings_df, x=innings_df.index, y=innings_df.runs, alpha=0.8, ax=ax1, hue=barhue, palette='mako', dodge=False)
-
-    ax1.set_ylim(y_range)
-
-    ax2 = ax1.twinx()
-
-    sns.lineplot(data = {'Average': running_av, f'Last {window_size} Innings': recent_form}, sort = False, ax=ax2, palette='rocket', linewidth=2)
-    ax2.set_ylim(y_range)
-    x_dates = innings_df.date.dt.strftime('%d-%m-%Y')
-    ax1.set_xticklabels(labels=x_dates, rotation=90);
-    ax1.xaxis.set_major_locator(plt.MaxNLocator(5))
-    ax1.margins(x=0)
-
 def percentagize_x_axis(data, _round = 2):
     length = len(data)
     return [round(x*(100/length), _round) for x in range(length)]
