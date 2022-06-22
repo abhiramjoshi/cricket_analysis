@@ -7,14 +7,15 @@ MATCH_JSONS = os.path.join(BASE_PATH, "data", 'match_jsons')
 HTMLS = os.path.join(BASE_PATH, "data", 'htmls')
 ANALYSIS = os.path.join(BASE_PATH, "data", 'analysis_data')
 SCORECARDS = os.path.join(BASE_PATH, "data", "scorecards")
-
+CAREERS = os.path.join(BASE_PATH, "data", "careers")
 paths = [
     DATA_LOCATION,
     FULL_COMMS,
     MATCH_JSONS,
     HTMLS,
     ANALYSIS,
-    SCORECARDS
+    SCORECARDS,
+    CAREERS
 ]
 
 for _path in paths:
