@@ -46,12 +46,14 @@ def dates_from_age(player_id, age_range):
                 if not bool(older_bound):
                     older_bound = datetime.now()
                 else:
+                    older_bound = int(older_bound)
                     older_bound = player_dob.replace(year=player_dob.year+int(older_bound)).strftime('%Y-%m-%d')
             except IndexError:
                 older_bound = int(younger_bound)+1
+                older_bound = player_dob.replace(year=player_dob.year+int(older_bound)).strftime('%Y-%m-%d')
         except ValueError:
             logger.error('Invalid value for player age')
-
+        
         return f"{younger_bound}:{older_bound}"
     return None
 
@@ -466,6 +468,7 @@ def describe_data_set(dataset, title, label_names=None):
     return groups
 
 def calculate_running_average(innings_df):
+    """Calculate running average for input innings. Returns list of running average"""
     if innings_df.empty:
         logger.info('No innings for player')
         return None
@@ -487,6 +490,8 @@ def calculate_running_average(innings_df):
     return _running_average
 
 def calculate_recent_form_average(innings_df:pd.DataFrame, window_size=12):
+    """Calculate recent form average for input innings. Returns list of recent form average"""
+    
     if innings_df.empty:
         logger.info('No innings for player')
         return None
