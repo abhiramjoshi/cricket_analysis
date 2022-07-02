@@ -14,6 +14,8 @@ from collections.abc import Iterable
 from datetime import datetime
 import espncricinfo.exceptions as cricketerrors
 
+
+
 def pre_transform_comms(match_object:match.MatchData):
     logger.info(f'Pre-transforming match commentary for {match_object.match_id}')
     df = pd.DataFrame.from_dict(match_object.get_full_comms())
@@ -26,9 +28,28 @@ def pre_transform_comms(match_object:match.MatchData):
     process_text_comms(df)
     logger.info(f'{match_object.match_id}: Processing bowler runs')
     df['bowlerRuns'] = df['batsmanRuns'] + df['wides'] + df['noballs']
-    innings_map = {inning['innings_number']: inning['team_id'] for inning in match_object.innings_list}
+    try:
+        innings_map = {inning['innings_number']: inning['team_id'] for inning in match_object.innings_list}
+    except KeyError:
+        innings_map = {inning['innings_number']: inning['batting_team_id'] for inning in match_object.innings_list}
     df['battingTeam'] = df['inningNumber'].map(innings_map)
     return df
+
+def how_out(dismissal_code):
+    DISMISSAL_DICT = {
+        1: 'Caught',
+        2: 'Bowled',
+        3: 'LBW',
+        4: 'RUN-OUT',
+        5: 'STUMPED',
+        6: 'HIT-WICKET',
+        13: False
+    }
+    try:
+        return DISMISSAL_DICT[dismissal_code]
+    except:
+        logger.info('Dismissal code was %s', dismissal_code)
+        return False
 
 def dates_from_age(player_id, age_range):
     if age_range:
@@ -207,19 +228,22 @@ def check_runout_while_nonstriker(commentary_df:pd.DataFrame, player_id, match_o
 
 
 def get_player_contributions(player_id:str or int, matches:list[match.MatchData], _type = 'both', by_innings = False, is_object_id=False):
-    if not isinstance(matches, Iterable):
+    if not isinstance(matches, list):
         matches = [matches]
     
     contributions = []
 
     for _match in matches:
-        if not isinstance(_match, match.MatchData):
-            _match = match.MatchData(_match)
+        try:
+            if not isinstance(_match, match.MatchData):
+                _match = match.MatchData(_match)
 
-        contr_comms = _get_player_contribution(player_id=player_id, _match=_match, _type=_type, by_innings=by_innings, is_object_id=is_object_id)
-        if not contr_comms.empty:
-            contributions.append(contr_comms)
-
+            contr_comms = _get_player_contribution(player_id=player_id, _match=_match, _type=_type, by_innings=by_innings, is_object_id=is_object_id)
+            for inning in contr_comms:
+                if not inning.empty:
+                    contributions.append(inning)
+        except utils.NoMatchCommentaryError:
+            continue
     return contributions
 
 def _get_player_contribution(player_id:str or int, _match:match.MatchData, _type = 'both', by_innings = False, is_object_id=False):
@@ -344,7 +368,7 @@ def _cricket_totals(player_id, m:match.MatchData, _type='both', by_innings=False
                     'six': batting_df_agg['isSix'],
                     'dot_balls': (batting_df[batting_df.batsmanPlayerId == player_id]['bowlerRuns'] == 0).sum(),
                     'not_out': not_out,
-                    'how_out': None
+                    'how_out': how_out(batting_df.iloc[-1].dismissalType)
                 }
                 batting_figures.append(inning_batting_figures)
         except utils.NoMatchCommentaryError:
