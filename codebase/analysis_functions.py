@@ -37,12 +37,12 @@ def pre_transform_comms(match_object:match.MatchData):
 
 def how_out(dismissal_code):
     DISMISSAL_DICT = {
-        1: 'Caught',
-        2: 'Bowled',
-        3: 'LBW',
-        4: 'RUN-OUT',
-        5: 'STUMPED',
-        6: 'HIT-WICKET',
+        1: 'caught',
+        2: 'bowled',
+        3: 'lbw',
+        4: 'run_out',
+        5: 'stumped',
+        6: 'hit_wicket',
         13: False
     }
     try:
@@ -305,6 +305,7 @@ def _cricket_totals(player_id, m:match.MatchData, _type='both', by_innings=False
     """
     Get the cricketing totals for the players. I.e. their stats in the collected innings.
     """
+    logger.info("Getting player totals for match: %s Player: %s", m.match_id, player_id)
     if is_object_id: #Change from object id to player id
         player_id = int(get_player_map(m, 'player_id', 'object_id')[int(player_id)])
     batting_figures = None
