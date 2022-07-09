@@ -8,9 +8,9 @@ from espncricinfo.match import Match
 from codebase.match_data import MatchData
 from pprint import pprint
 import codebase.analysis_functions as af
-TEST_MATCH_ID = '520591'
+TEST_MATCH_ID = '1320741'
 M = MatchData(TEST_MATCH_ID)
-PLAYER_ID = '277906'
+PLAYER_ID = '253802'
 
 def test_aggregate_fetch(m):
     return af.get_aggregates(m, 'bat-fours')
