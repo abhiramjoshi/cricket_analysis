@@ -6,6 +6,39 @@ from utils import logger
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+def graph_multi_player_batting_careers(player_ids, dates=None, player_ages = None, graph_elements = [True, True, True], disable_logging=False):
+    """
+    Graph Batting Careers for multiple players
+
+    player_ids: List of player_ids
+    dates: The dates between which the careers should be graphed, date format YYYY-MM-DD:YYYY-MM-DD
+    player_ages: List of player ages that you want to graph the data from, if you define a single number then all players will be graphed after that age
+    graph_elements: Elements of the batting graph to plot [recent form, running average, innings bars]
+    """
+    #need to get player forms, and then need to graph it in a subplot
+    keys = ['calculate_recent_form_average', 'calculate_running_average', 'innings_totals']
+    
+    _funcs = []
+    if graph_elements[0]:
+        _funcs.append(af.calculate_recent_form_average)
+    if graph_elements[1]:
+        _funcs.append(af.calculate_running_average)
+    all_stats = af.apply_aggregate_func_to_list(player_ids, _funcs=_funcs, player_ages=player_ages, return_innings=graph_elements[2], disable_logging=disable_logging)
+
+    for key in keys:
+        try:
+            all_stats[key]
+        except KeyError:
+            all_stats[key] = None
+
+    graph_career_batting_summary(
+        recent_form=all_stats[keys[0]], 
+        running_ave=all_stats[keys[1]], 
+        innings_scores=all_stats[keys[2]],
+    )
+
+
+
 def graph_career_batting_summary(recent_form=None, running_ave=None, innings_scores=None, x_label = None, y_label = None, barhue=None):
     combined_averages = {**{k:recent_form[k] for k in sorted(recent_form)}, **{f'{key}_rf':running_ave[key] for key in sorted(running_ave)}}
     k = len(combined_averages)//2
@@ -47,6 +80,8 @@ def graph_career_batting_summary(recent_form=None, running_ave=None, innings_sco
             ax2.xaxis.set_major_locator(plt.MaxNLocator(15))
             ax1[i].set_ylim(y_range)
             ax2.set_ylim(y_range)
+
+    plt.show()
 
 
 def get_career_batting_graph(player_id:str or int, _format:str = 'test', player_age=None, dates:str=None, barhue:str=None, window_size:int = 12, label_spacing=10):
