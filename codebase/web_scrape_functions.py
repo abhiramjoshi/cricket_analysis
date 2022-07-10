@@ -115,7 +115,7 @@ def match_ids_and_links(table, match_links):
         return list(zip(match_ids, match_list))
     return match_ids
 
-def player_match_list(player_id, dates=None, _format='test', match_links = False):
+def get_player_match_list(player_id, dates=None, _format='test', match_links = False):
     logger.info("Getting match list for player: %s Dates: %s", player_id, dates)
     url = get_statsguru_player_url(player_id, _format)
     table = read_statsguru(url, table_name='Match by match list')[0]
