@@ -116,6 +116,16 @@ def match_ids_and_links(table, match_links):
     return match_ids
 
 def get_player_match_list(player_id, dates=None, _format='test', match_links = False):
+    """
+    Get matches for a player
+
+    Returns: IDs of matches
+
+    player_id: Cricinfo object id for player
+    dates: The dates between which the careers should be graphed, date format YYYY-MM-DD:YYYY-MM-DD
+    _format: 'test'| 'odi' | 't20'
+    match_links: Return the link to the cricinfo match page as well as the ids
+    """
     logger.info("Getting match list for player: %s Dates: %s", player_id, dates)
     url = get_statsguru_player_url(player_id, _format)
     table = read_statsguru(url, table_name='Match by match list')[0]
