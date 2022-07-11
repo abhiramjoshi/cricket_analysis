@@ -17,6 +17,8 @@ class MatchData(Match):
         self.second_innings = self.get_innings_comms(innings = 2)
         self.third_innings = self.get_innings_comms(innings = 3)
         self.fourth_innings = self.get_innings_comms(innings = 4)
+        if not self.innings_list:
+            self.innings_list = self.innings
 
     def get_detailed_comms_faster(self, try_local=True, save=True, serialize=True):
         """

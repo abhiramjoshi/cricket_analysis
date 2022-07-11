@@ -26,7 +26,10 @@ def pre_transform_comms(match_object:match.MatchData):
     process_text_comms(df)
     logger.info(f'{match_object.match_id}: Processing bowler runs')
     df['bowlerRuns'] = df['batsmanRuns'] + df['wides'] + df['noballs']
-    innings_map = {inning['innings_number']: inning['team_id'] for inning in match_object.innings_list}
+    try:
+        innings_map = {inning['innings_number']: inning['team_id'] for inning in match_object.innings_list}
+    except:
+        innings_map = {inning['innings_number']: inning['batting_team_id'] for inning in match_object.innings}
     df['battingTeam'] = df['inningNumber'].map(innings_map)
     return df
 
@@ -246,7 +249,10 @@ def _get_player_contribution(player_id:str or int, _match:match.MatchData, _type
         comms.loc[i] = runout_nonstrikers_df
 
     if by_innings:
-        comms = [comms[comms['inningNumber'] == i+1] for i, _ in enumerate(_match.innings_list) if not comms[comms['inningNumber'] == i+1].empty]
+        try:
+            comms = [comms[comms['inningNumber'] == j+1] for j, _ in enumerate(_match.innings_list) if not comms[comms['inningNumber'] == j+1].empty]
+        except TypeError:
+            comms = [comms[comms['inningNumber'] == j+1] for j, _ in enumerate(_match.innings) if not comms[comms['inningNumber'] == j+1].empty]
         # for i, _ in enumerate(match.innings_list):
         #     _comms.append(comms[comms['inningNumber'] == i])
         # _comm
@@ -515,7 +521,7 @@ def calculate_recent_form_average(innings_df:pd.DataFrame, window_size=12):
 def get_running_average(player_id, innings = None, match_list=None, _format='test'):
     if innings is None:
         if match_list is None:
-            match_list = wsf.player_match_list(player_id, _format=_format, match_links=False)
+            match_list = wsf.get_player_match_list(player_id, _format=_format, match_links=False)
         innings = get_cricket_totals(player_id, match_list, _type='bat', by_innings=True, is_object_id=True)
     #innings = [inning for match in contributions for inning in match]
     innings_df = pd.DataFrame(innings)
@@ -525,7 +531,7 @@ def get_running_average(player_id, innings = None, match_list=None, _format='tes
 def get_recent_form_average(player_id, innings=None, match_list=None, window_size=10,_format='test'):
     if innings is None:
         if match_list is None:
-            match_list = wsf.player_match_list(player_id, _format=_format, match_links=False)
+            match_list = wsf.get_player_match_list(player_id, _format=_format, match_links=False)
         innings = get_cricket_totals(player_id, match_list, _type='bat', by_innings=True, is_object_id=True)
     # innings = [inning for match in contributions for inning in match]
     innings_df = pd.DataFrame(innings)
@@ -578,7 +584,7 @@ def apply_aggregate_func_to_list(player_id_list, _funcs, player_ages=None, dates
     for i,player in enumerate(player_id_list):
         if not dates:
             dates = dates_from_age(player, player_ages[i])
-        player_match_list = wsf.player_match_list(player, dates=dates)
+        player_match_list = wsf.get_player_match_list(player, dates=dates)
         player_innings_df = get_cricket_totals(player, player_match_list, _type='bat', by_innings=True, is_object_id=True)
         player_innings_df = pd.DataFrame(player_innings_df)
         for _func in _funcs:
