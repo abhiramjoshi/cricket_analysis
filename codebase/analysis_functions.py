@@ -591,7 +591,7 @@ def normalized_career_length(career_data:dict):
     full_df.sort_index(inplace=True)
     return full_df
 
-def apply_aggregate_func_to_list(player_id_list, _funcs, player_ages=None, disable_logging=True, **kwargs):
+def apply_aggregate_func_to_list(player_id_list, _funcs, player_ages=None, dates = None, disable_logging=True, **kwargs):
     if player_ages:
         if not isinstance(player_ages, list):
             player_ages = [player_ages]
@@ -602,10 +602,12 @@ def apply_aggregate_func_to_list(player_id_list, _funcs, player_ages=None, disab
             player_ages = player_ages[:len(player_id_list)]
     else:
         player_ages = [None for i in range(len(player_id_list))]
+
     logger.disabled = disable_logging
     applied_values = defaultdict(dict)
     for i,player in enumerate(player_id_list):
-        dates = dates_from_age(player, player_ages[i])
+        if not dates:
+            dates = dates_from_age(player, player_ages[i])
         player_match_list = wsf.player_match_list(player, dates=dates)
         player_innings_df = get_cricket_totals(player, player_match_list, _type='bat', by_innings=True, is_object_id=True)
         player_innings_df = pd.DataFrame(player_innings_df)
