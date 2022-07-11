@@ -23,7 +23,7 @@ def graph_multi_player_batting_careers(player_ids, dates=None, player_ages = Non
         _funcs.append(af.calculate_recent_form_average)
     if graph_elements[1]:
         _funcs.append(af.calculate_running_average)
-    all_stats = af.apply_aggregate_func_to_list(player_ids, _funcs=_funcs, player_ages=player_ages, return_innings=graph_elements[2], disable_logging=disable_logging)
+    all_stats = af.apply_aggregate_func_to_list(player_ids, _funcs=_funcs, dates=dates, player_ages=player_ages, return_innings=graph_elements[2], disable_logging=disable_logging)
 
     for key in keys:
         try:

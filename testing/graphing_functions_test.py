@@ -20,6 +20,6 @@ def multi_player_graphing():
 
 if __name__ == '__main__':
     start = timeit.default_timer()
-    gf.graph_multi_player_batting_careers(PLAYER_IDS, player_ages='30:')
+    gf.graph_multi_player_batting_careers(PLAYER_IDS, dates="2020-02-21:")
     stop = timeit.default_timer()
     print('Time: ', abs(start-stop))
