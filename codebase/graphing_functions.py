@@ -81,7 +81,7 @@ def graph_career_batting_summary(recent_form=None, running_ave=None, innings_sco
             ax1[i].set_ylim(y_range)
             ax2.set_ylim(y_range)
 
-    plt.show()
+    # plt.show()
 
 
 def get_career_batting_graph(player_id:str or int, _format:str = 'test', player_age=None, dates:str=None, barhue:str=None, window_size:int = 12, label_spacing=10):
