@@ -261,3 +261,12 @@ def save_data(match_id, data, suffix, data_folder=DATA_LOCATION, subfilepath='',
                 f.write(json.dumps(data))
             else:
                 f.write(data)
+
+
+def check_if_ipython():
+    """Returns true if code running in IPython Shell"""
+    try:
+        shell = get_ipython().__class__.__name__
+        return True
+    except NameError:
+        return False
