@@ -3,6 +3,7 @@ import codebase.web_scrape_functions as wsf
 from codebase.match_data import MatchData
 import pandas as pd
 from utils import logger
+import utils
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -42,8 +43,10 @@ def graph_multi_player_batting_careers(player_ids, dates=None, player_ages = Non
 def graph_career_batting_summary(recent_form=None, running_ave=None, innings_scores=None, x_label = None, y_label = None, barhue=None):
     combined_averages = {**{k:recent_form[k] for k in sorted(recent_form)}, **{f'{key}_rf':running_ave[key] for key in sorted(running_ave)}}
     k = len(combined_averages)//2
-    fig, ax1 = plt.subplots(nrows=k, figsize=(18, k*5), sharey=True)
+    fig, ax1 = plt.subplots(nrows=k, figsize=(18, k*5))
     sns.set_theme()
+
+
     for i in range(k):
         first_column = list(combined_averages.keys())[i]
         second_column = list(combined_averages.keys())[i+k]
@@ -52,7 +55,7 @@ def graph_career_batting_summary(recent_form=None, running_ave=None, innings_sco
         if innings_scores:
             logger.debug('Graphing inning by inning scores')
             try:
-                y_range = [0, max(innings_scores[first_column].runs) + 20]
+                y_range = max([0, max(innings_scores[first_column].runs) + 20], [0, max(combined_averages[first_column]) + 20])
             except ValueError:
                 if not combined_averages[first_column]:
                     logger.info('Player %s has no matches to graph', first_column)
@@ -80,8 +83,9 @@ def graph_career_batting_summary(recent_form=None, running_ave=None, innings_sco
             ax2.xaxis.set_major_locator(plt.MaxNLocator(15))
             ax1[i].set_ylim(y_range)
             ax2.set_ylim(y_range)
-
-    # plt.show()
+    
+    if not utils.check_if_ipython():
+        plt.show()
 
 
 def get_career_batting_graph(player_id:str or int, _format:str = 'test', player_age=None, dates:str=None, barhue:str=None, window_size:int = 12, label_spacing=10):
