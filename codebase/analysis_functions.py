@@ -596,3 +596,42 @@ def apply_aggregate_func_to_list(player_id_list, _funcs, player_ages=None, dates
         logger.disabled = not disable_logging
     
     return applied_values
+
+def get_dismissal_descriptions(commentary):
+    all_dismissals = []
+    for match in commentary:
+        comms = match.iloc[-1]
+        
+        if comms.dismissalText not in [None, 'null', 'NaN', 'None']:
+            logger.debug('Dismissal commentary: %s, %s', comms.commentTextItems, comms.dismissalText)
+            all_dismissals.append((comms.commentTextItems, comms.dismissalText))
+        else:
+            logger.debug("Batsman was not dismissed in match, %s", comms.commentTextItems)
+
+    return all_dismissals
+
+def search_for_keywords(text_items, keywords = [], exclude_words = [], return_matching = False):
+    count = 0
+    matching = []
+    logger.debug('Finding text with matching words %s', keywords)
+    logger.debug('Exluding text if contains %s', exclude_words)
+    for text in text_items:
+        for word in keywords:
+            if word in text.lower():
+                exclude = False
+                for e_word in exclude_words:
+                    if e_word in text.lower():
+                        exclude = True
+                        break
+                if exclude:
+                    logger.debug("Matching text with exlusion: %s", text)
+                    break
+                count += 1
+                logger.debug("Matching text: %s", text)
+                matching.append(text)
+                break
+            else:
+                logger.debug("No matches in text: %s", text)
+    if return_matching:
+        return count, matching
+    return count
