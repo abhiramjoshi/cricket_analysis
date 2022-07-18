@@ -59,4 +59,5 @@ if __name__ == '__main__':
     # test_get_career_batting_graph(PLAYER_ID, dates='2020-01-01:')
     # print(test_get_figures_from_scorecard(PLAYER_ID, M, 'bat'))
     stop = timeit.default_timer()
+    
     print('Time: ', abs(start-stop))
