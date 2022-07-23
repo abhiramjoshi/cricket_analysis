@@ -33,7 +33,7 @@ def pre_transform_comms(match_object:match.MatchData):
     df['battingTeam'] = df['inningNumber'].map(innings_map)
     return df
 
-def how_out(dismissal_code):
+def how_out(dismissal_code, keep_code = False):
     DISMISSAL_DICT = {
         1: 'caught',
         2: 'bowled',
@@ -43,6 +43,8 @@ def how_out(dismissal_code):
         6: 'hit_wicket',
         13: False
     }
+    if keep_code:
+        return dismissal_code
     try:
         return DISMISSAL_DICT[dismissal_code]
     except:
@@ -230,13 +232,16 @@ def get_player_contributions(player_id:str or int, matches:list[match.MatchData]
     contributions = []
 
     for _match in matches:
-        if not isinstance(_match, match.MatchData):
-            _match = match.MatchData(_match)
+        try:
+            if not isinstance(_match, match.MatchData):
+                _match = match.MatchData(_match)
 
-        contr_comms = _get_player_contribution(player_id=player_id, _match=_match, _type=_type, by_innings=by_innings, is_object_id=is_object_id)
-        if not contr_comms.empty:
-            contributions.append(contr_comms)
-
+            contr_comms = _get_player_contribution(player_id=player_id, _match=_match, _type=_type, by_innings=by_innings, is_object_id=is_object_id)
+            for inning in contr_comms:
+                if not inning.empty:
+                    contributions.append(inning)
+        except utils.NoMatchCommentaryError:
+            continue
     return contributions
 
 def _get_player_contribution(player_id:str or int, _match:match.MatchData, _type = 'both', by_innings = False, is_object_id=False):
@@ -274,7 +279,7 @@ def _get_player_contribution(player_id:str or int, _match:match.MatchData, _type
         # _comm
     return comms
 
-def get_cricket_totals(player_id, matches, _type='both', by_innings=False, is_object_id=False, from_scorecards=False):
+def get_cricket_totals(player_id, matches, _type='both', by_innings=False, is_object_id=False, from_scorecards=False, keep_dismissal_codes=False):
     if not isinstance(matches, Iterable):
         matches = [matches]
     
@@ -285,7 +290,7 @@ def get_cricket_totals(player_id, matches, _type='both', by_innings=False, is_ob
         try:
             if not isinstance(_match, match.MatchData):
                 _match = match.MatchData(_match)
-            contribution = _cricket_totals(player_id, _match, _type, by_innings, is_object_id, from_scorecards=from_scorecards)
+            contribution = _cricket_totals(player_id, _match, _type, by_innings, is_object_id, from_scorecards=from_scorecards, keep_dismissal_codes=keep_dismissal_codes)
             if _type == 'both':
                 for i,inning in enumerate(contribution['bat']+contribution['bowl']):
                     contributions.append({**inning, **{key:contribution[key] for key in contribution.keys() if key not in ['bat', 'bowl']}})
@@ -297,7 +302,7 @@ def get_cricket_totals(player_id, matches, _type='both', by_innings=False, is_ob
             logger.warning('Match ID: %s not found', _match)
     return contributions
 
-def _cricket_totals(player_id, m:match.MatchData, _type='both', by_innings=False, is_object_id=False, from_scorecards=False):
+def _cricket_totals(player_id, m:match.MatchData, _type='both', by_innings=False, is_object_id=False, from_scorecards=False, keep_dismissal_codes=False):
     """
     Get the cricketing totals for the players. I.e. their stats in the collected innings.
     """
@@ -321,23 +326,26 @@ def _cricket_totals(player_id, m:match.MatchData, _type='both', by_innings=False
                 raise utils.NoMatchCommentaryError
             bowling_dfs = _get_player_contribution(player_id, m, 'bowl', by_innings=by_innings, is_object_id=(not is_object_id))
             if not by_innings:
-                bowling_dfs = pd.concat(bowling_dfs, ignore_index=True, axis=0)
+                bowling_dfs = pd.concat([bowling_dfs], ignore_index=True, axis=0)
             if not isinstance(bowling_dfs, list):
                 bowling_dfs = [bowling_dfs]
             for bowling_df in bowling_dfs:
-                balls_bowled = bowling_df.shape[0]
-                bowling_df_agg = bowling_df[['batsmanRuns', 'bowlerRuns', 'noballs', 'wides', 'isSix', 'isFour', 'isWicket', 'legbyes']].sum(numeric_only=False)
-                extras = bowling_df_agg['wides']+bowling_df_agg['noballs']
-                inning = bowling_df['inningNumber'].iloc[0]
-                inning_bowling_figures = {
-                    'inning':inning,
-                    'overs': f'{(balls_bowled - extras)//6}.{(balls_bowled - extras)%6}',
-                    'runs': bowling_df_agg['bowlerRuns'],
-                    'dot_balls': (bowling_df['bowlerRuns'] == 0).sum(),
-                    'wides': bowling_df_agg['wides'],
-                    'noballs': bowling_df_agg['noballs']
-                }
-                bowling_figures.append(inning_bowling_figures)
+                try:
+                    balls_bowled = bowling_df.shape[0]
+                    bowling_df_agg = bowling_df[['batsmanRuns', 'bowlerRuns', 'noballs', 'wides', 'isSix', 'isFour', 'isWicket', 'legbyes']].sum(numeric_only=False)
+                    extras = bowling_df_agg['wides']+bowling_df_agg['noballs']
+                    inning = bowling_df['inningNumber'].iloc[0]
+                    inning_bowling_figures = {
+                        'inning':inning,
+                        'overs': f'{(balls_bowled - extras)//6}.{(balls_bowled - extras)%6}',
+                        'runs': bowling_df_agg['bowlerRuns'],
+                        'dot_balls': (bowling_df['bowlerRuns'] == 0).sum(),
+                        'wides': bowling_df_agg['wides'],
+                        'noballs': bowling_df_agg['noballs']
+                    }
+                    bowling_figures.append(inning_bowling_figures)
+                except IndexError:
+                    continue
         except utils.NoMatchCommentaryError:
             logger.info("Getting bowling figures from scorecard")
             bowling_figures += get_figures_from_scorecard(player_id, m, 'bowl', is_object_id=(not is_object_id))
@@ -349,25 +357,28 @@ def _cricket_totals(player_id, m:match.MatchData, _type='both', by_innings=False
                 raise utils.NoMatchCommentaryError
             batting_dfs = _get_player_contribution(player_id, m, 'bat', by_innings=by_innings, is_object_id=(not is_object_id))
             if not by_innings:
-                batting_dfs = pd.concat(batting_dfs, ignore_index=True, axis=0)
+                batting_dfs = pd.concat([batting_dfs], ignore_index=True, axis=0)
             if not isinstance(batting_dfs, list):
                 batting_dfs = [batting_dfs]
             for batting_df in batting_dfs:
-                not_out = not batting_df['isWicket'].iloc[-1]
-                balls_faced = batting_df[batting_df.batsmanPlayerId == player_id].shape[0]
-                batting_df_agg = batting_df[batting_df.batsmanPlayerId == player_id].sum()
-                inning = batting_df['inningNumber'].iloc[0]
-                inning_batting_figures = {
-                    'inning': inning,
-                    'runs': batting_df_agg['batsmanRuns'],
-                    'balls_faced': balls_faced,
-                    'fours': batting_df_agg['isFour'],
-                    'six': batting_df_agg['isSix'],
-                    'dot_balls': (batting_df[batting_df.batsmanPlayerId == player_id]['bowlerRuns'] == 0).sum(),
-                    'not_out': not_out,
-                    'how_out': None
-                }
-                batting_figures.append(inning_batting_figures)
+                try:
+                    not_out = not batting_df['isWicket'].iloc[-1]
+                    balls_faced = batting_df[batting_df.batsmanPlayerId == player_id].shape[0]
+                    batting_df_agg = batting_df[batting_df.batsmanPlayerId == player_id].sum()
+                    inning = batting_df['inningNumber'].iloc[0]
+                    inning_batting_figures = {
+                        'inning': inning,
+                        'runs': batting_df_agg['batsmanRuns'],
+                        'balls_faced': balls_faced,
+                        'fours': batting_df_agg['isFour'],
+                        'six': batting_df_agg['isSix'],
+                        'dot_balls': (batting_df[batting_df.batsmanPlayerId == player_id]['bowlerRuns'] == 0).sum(),
+                        'not_out': not_out,
+                        'how_out': how_out(batting_df.iloc[-1].dismissalType, keep_code=keep_dismissal_codes)
+                    }
+                    batting_figures.append(inning_batting_figures)
+                except IndexError:
+                    continue
         except utils.NoMatchCommentaryError:
             logger.info("Getting batting figures from scorecard")
             batting_figures += get_figures_from_scorecard(player_id, m, 'bat', is_object_id=(not is_object_id))
@@ -627,12 +638,18 @@ def get_dismissal_descriptions(commentary):
 
     return all_dismissals
 
-def search_for_keywords(text_items, keywords = [], exclude_words = [], return_matching = False):
+def search_for_keywords(text_items, keywords = [], exclude_words = [], return_matching = False, return_indices = False):
+    """
+    Searches for keywords in the text_item
+    
+    Returns: (count, matching_items, indices)
+    """
     count = 0
     matching = []
+    indices = []
     logger.debug('Finding text with matching words %s', keywords)
     logger.debug('Exluding text if contains %s', exclude_words)
-    for text in text_items:
+    for i, text in enumerate(text_items):
         for word in keywords:
             if word in text.lower():
                 exclude = False
@@ -646,9 +663,18 @@ def search_for_keywords(text_items, keywords = [], exclude_words = [], return_ma
                 count += 1
                 logger.debug("Matching text: %s", text)
                 matching.append(text)
+                indices.append(i)
                 break
             else:
                 logger.debug("No matches in text: %s", text)
+    return_object = [count]
     if return_matching:
-        return count, matching
-    return count
+        return_object.append(matching)
+    else:
+        return_object.append(None)
+    
+    if return_indices:
+        return_object.append(indices)
+    else:
+        return_object.append(None)
+    return tuple(return_object)
