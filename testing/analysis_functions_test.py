@@ -8,9 +8,9 @@ from espncricinfo.match import Match
 from codebase.match_data import MatchData
 from pprint import pprint
 import codebase.analysis_functions as af
-TEST_MATCH_ID = '343730'
+TEST_MATCH_ID = '489226'
 M = MatchData(TEST_MATCH_ID)
-PLAYER_ID = '50424'
+PLAYER_ID = '253802'
 
 def test_aggregate_fetch(m):
     return af.get_aggregates(m, 'bat-fours')
@@ -50,7 +50,8 @@ if __name__ == '__main__':
     #commentary_df = af.pre_transform_comms(M)
     # print(test_aggregate_fetch(M))
     #test_player_contributions(M, is_object_id=True, by_innings=True)
-    test_cricket_totals(PLAYER_ID, M, is_object_id=True, by_innings=True)
+    af.get_cricket_totals(PLAYER_ID, [TEST_MATCH_ID], 'bat', True, True)
+    # test_cricket_totals(PLAYER_ID, M, is_object_id=True, by_innings=True)
     # print(test_runout_while_nonstriker(commentary_df, PLAYER_ID, M, True))
     # print(af.get_player_contributions(PLAYER_ID, TEST_MATCH_ID, _type='bat', by_innings= True, is_object_id= True))
     # af.apply_aggregate_func_to_list(['253802', '303669', '277906', '267192'], [af.get_recent_form_average, af.get_running_average], dates='2020-02-21:', disable_logging=False)

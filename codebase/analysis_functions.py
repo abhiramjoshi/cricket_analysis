@@ -383,7 +383,7 @@ def _cricket_totals(player_id, m:match.MatchData, _type='both', by_innings=False
             logger.info("Getting batting figures from scorecard")
             batting_figures += get_figures_from_scorecard(player_id, m, 'bat', is_object_id=(not is_object_id))
         logger.debug("Match ID: %s\nBatting: %s\nBowling: %s",m.match_id, batting_figures, bowling_figures) 
-    return {'bat': batting_figures, 'bowl': bowling_figures, 'date':datetime.strptime(date, "%Y-%m-%d"),'team':team, 'opposition': opps, 'ground':ground, 'continent':continent}
+    return {'bat': batting_figures, 'bowl': bowling_figures, 'date':datetime.strptime(date, "%Y-%m-%d"),'team':team, 'opposition': opps, 'ground':ground, 'continent':continent, 'match_id': m.match_id}
 
 def process_text_comms(df:pd.DataFrame, columns = ['dismissalText', 'commentPreTextItems', 'commentTextItems', 'commentPostTextItems', 'commentVideos']):
     for column in columns:
